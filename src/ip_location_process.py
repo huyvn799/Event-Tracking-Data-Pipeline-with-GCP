@@ -21,6 +21,7 @@ CSV_PATH = "output/ip_locations.csv"
 UNIQUE_IPS_CSV_PATH = "output/unique_ips.csv"
 BIN_PATH = "input/IP-COUNTRY-REGION-CITY.BIN"
 
+os.makedirs("output", exist_ok=True)
 
 def process_ip_locations():
     # Bắt đầu đo thời gian chương trình
@@ -105,10 +106,6 @@ def process_ip_locations():
         client.close()
         return
     
-    # Xóa file CSV cũ nếu tồn tại
-    if os.path.exists(CSV_PATH):
-        os.remove(CSV_PATH)
-    
     # Khởi tạo thống kê
     total_success = 0
     total_failure = 0
@@ -155,6 +152,10 @@ def process_ip_locations():
         
         # Ghi batch vào CSV (append mode)
         try:
+            # Xóa file CSV cũ nếu tồn tại
+            if os.path.exists(CSV_PATH):
+                os.remove(CSV_PATH)
+
             with open(CSV_PATH, 'a', newline='', encoding='utf-8') as csvfile:
                 if i == 0:  # Viết header cho lần đầu
                     writer = csv.DictWriter(csvfile, fieldnames=["IP", "Country", "Region", "City", "Mapped"])
