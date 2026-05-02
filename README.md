@@ -9,11 +9,12 @@
 3. Nạp data từ GCS trên mongodb database trong VM
 ![alt text](screenshot/3_restore_db_result.JPG)
 4. Tạo file .env ngay thư mục project và tạo các biến phù hợp để kết nối tới database như sau:
-- Sử dụng account với role "root", trường hợp không tạo account thì để trống
+- Sử dụng account với role "root" để điền thông tin `MONGO_USERNAME` và `MONGO_PASSWORD`, nếu không tạo account thì để trống.
+- Sử dụng địa chỉ pulbic IP của VM để điền thông tin `MONGO_HOST`, nếu chạy trực tiếp trên VM thì để trống hoặc "localhost"
 ```
 MONGO_USERNAME=******
 MONGO_PASSWORD=******
-MONGO_VM_PUBLIC_IP=******
+MONGO_HOST=******
 MONGO_PORT=27017
 MONGO_DB_NAME=******
 MONGO_COLLECTION_NAME=******

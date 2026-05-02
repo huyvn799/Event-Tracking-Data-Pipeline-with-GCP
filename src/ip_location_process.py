@@ -10,7 +10,7 @@ load_dotenv()
 
 USERNAME = os.getenv("MONGO_USERNAME") or ""
 PASSWORD = quote_plus(os.getenv("MONGO_PASSWORD")) or ""
-HOST = os.getenv("MONGO_VM_PUBLIC_IP") or "localhost"
+HOST = os.getenv("MONGO_HOST") or "localhost"
 PORT = os.getenv("MONGO_PORT") or "27017"
 DB_NAME = os.getenv("MONGO_DB_NAME")
 COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
