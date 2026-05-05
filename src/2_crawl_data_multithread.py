@@ -1,10 +1,10 @@
-import requests
+from curl_cffi import requests
 import json
 import csv
 import os
 import time
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from bs4 import BeautifulSoup
 import re
@@ -25,7 +25,7 @@ DB_NAME = os.getenv("MONGO_DB_NAME")
 COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 
 # --- CẤU HÌNH ---
-MAX_WORKERS = 20
+MAX_WORKERS = 5
 MAX_RETRIES = 5
 BATCH_SIZE = 50
 OUTPUT_DIR = "output/crawl_data3"
@@ -133,10 +133,18 @@ def crawl_task(pid):
     try:
         # Giả lập trình duyệt để tránh 403
         headers = {
-            'User-Agent': f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
-            'Referer': f"https://www.glamira.vn/"
+            # 'User-Agent': ua.random, # Nếu dùng curl_cffi, tham số impersonate sẽ tự động set User-Agent, nên có thể bỏ qua dòng này
+            'Referer': 'https://www.glamira.vn/',
+            'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
         }
-        resp = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
+
+        resp = requests.get(
+            url,
+            headers=headers,
+            impersonate="chrome120",
+            timeout=15,
+            verify=False) # curl_cffi requests
+        # resp = requests.get(url, headers=headers, allow_redirects=True, timeout=10) # requests thường
         
         if resp.status_code == 200:
             html = resp.text
@@ -145,12 +153,12 @@ def crawl_task(pid):
             
             if isinstance(cleaned_data, dict):
                 record = {"product_id": pid, "data": cleaned_data, "crawled_at": datetime.now().isoformat()}
-                return "SUCCESS", record
+                return "SUCCESS", record, pid
 
-            return "ERR_NO_DATA", None
-        return f"HTTP_{resp.status_code}", None
+            return "ERR_NO_DATA", None, pid
+        return f"HTTP_{resp.status_code}", None, pid
     except Exception as e:
-        return f"ERR_{type(e).__name__}", None
+        return f"ERR_{type(e).__name__}", None, pid
 
 def get_product_ids_from_db():
     """Hàm này có thể được sử dụng để lấy danh sách product_id trực tiếp từ MongoDB nếu cần."""
@@ -182,25 +190,31 @@ def run_pipeline(product_ids):
         print(f"\n>>> BẮT ĐẦU LẦN {attempt} ({len(current_targets)} SP)")
         
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = [executor.submit(crawl_task, pid) for pid in current_targets]
+            # Ánh xạ Future với Product ID (Mapping Pattern) để tránh lỗi logic nhầm ID
+            future_to_pid = {executor.submit(crawl_task, pid): pid for pid in current_targets}
             
-            for future in futures:
-                status, task_result = future.result()
+            for future in as_completed(future_to_pid):
+                try:
+                    status, task_result, pid = future.result(timeout=15)
+                    
+                    if status == "SUCCESS":
+                        win_in_attempt += 1
+                        safe_write_jsonl(task_result)
+                        safe_write_csv("success.csv", {"id": pid, "attempt": attempt, "time": datetime.now()})
+                    else:
+                        fail_in_attempt += 1
+                        next_retry_list.append({"product_id": pid, "status_code": status})
+                        safe_write_csv("failed_retry.csv", {"id": pid, "attempt": attempt, "status_code": task_result.get("status_code"), "time": datetime.now()})
+                    
+                    # Thống kê mỗi 50 sản phẩm
+                    total_processed = win_in_attempt + fail_in_attempt
+                    if total_processed % BATCH_SIZE == 0:
+                        print(f"   [Thống kê] Đã xong {total_processed} SP | Thành công: {win_in_attempt} | Thất bại: {fail_in_attempt}")
                 
-                if status == "SUCCESS":
-                    win_in_attempt += 1
-                    safe_write_jsonl(task_result)
-                    safe_write_csv("success.csv", {"id": task_result["product_id"], "attempt": attempt, "time": datetime.now()})
-                else:
-                    fail_in_attempt += 1
-                    next_retry_list.append({"product_id": task_result["product_id"], "status_code": status})
-                    safe_write_csv("failed_retry.csv", {"id": task_result["product_id"], "attempt": attempt, "status_code": task_result.get("status_code"), "time": datetime.now()})
-                
-                # Thống kê mỗi 50 sản phẩm
-                total_processed = win_in_attempt + fail_in_attempt
-                if total_processed % BATCH_SIZE == 0:
-                    print(f"   [Thống kê] Đã xong {total_processed} SP | Thành công: {win_in_attempt} | Thất bại: {fail_in_attempt}")
-
+                except Exception as e:
+                    next_retry_list.append({"product_id": pid, "status_code": status})
+                    safe_write_csv("failed_retry.csv", {"id": pid, "attempt": attempt, "status_code": "Timeout", "time": datetime.now()})
+        
         print(f"--- Kết quả lượt {attempt}: Thành công {win_in_attempt}, Thất bại {fail_in_attempt}")
         print(f"--- Thời gian lượt: {time.time() - attempt_start:.2f}s")
         
