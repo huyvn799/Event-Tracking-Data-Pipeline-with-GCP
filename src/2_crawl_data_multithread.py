@@ -12,6 +12,7 @@ from fake_useragent import UserAgent
 from dotenv import load_dotenv
 from urllib.parse import quote_plus
 import pymongo
+import shutil
 
 # --- CẤU HÌNH ---
 load_dotenv()
@@ -27,10 +28,12 @@ COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 MAX_WORKERS = 20
 MAX_RETRIES = 5
 BATCH_SIZE = 50
-OUTPUT_DIR = "output/crawl_data2"
-LOG_DIR = "output/logs2"
+OUTPUT_DIR = "output/crawl_data3"
+LOG_DIR = "output/logs3"
 RECORDS_PER_FILE = 1000
 
+shutil.rmtree(OUTPUT_DIR) if os.path.exists(OUTPUT_DIR) else None
+shutil.rmtree(LOG_DIR) if os.path.exists(LOG_DIR) else None
 for d in [OUTPUT_DIR, LOG_DIR]: os.makedirs(d, exist_ok=True)
 
 # Danh sách các thông tin bạn THỰC SỰ muốn lấy
@@ -168,7 +171,8 @@ def get_product_ids_from_db():
 def run_pipeline(product_ids):
     current_targets = set(product_ids)
     global_start = time.time()
-    
+    final_failed_products = []
+
     for attempt in range(1, MAX_RETRIES + 1):
         attempt_start = time.time()
         win_in_attempt = 0
@@ -189,8 +193,8 @@ def run_pipeline(product_ids):
                     safe_write_csv("success.csv", {"id": task_result["product_id"], "attempt": attempt, "time": datetime.now()})
                 else:
                     fail_in_attempt += 1
-                    next_retry_list.add(task_result["product_id"])
-                    safe_write_csv("failed.csv", {"id": task_result["product_id"], "attempt": attempt, "status_code": task_result.get("status_code"), "time": datetime.now()})
+                    next_retry_list.add({"product_id": task_result["product_id"], "status_code": status})
+                    safe_write_csv("failed_retry.csv", {"id": task_result["product_id"], "attempt": attempt, "status_code": task_result.get("status_code"), "time": datetime.now()})
                 
                 # Thống kê mỗi 50 sản phẩm
                 total_processed = win_in_attempt + fail_in_attempt
@@ -200,12 +204,16 @@ def run_pipeline(product_ids):
         print(f"--- Kết quả lượt {attempt}: Thành công {win_in_attempt}, Thất bại {fail_in_attempt}")
         print(f"--- Thời gian lượt: {time.time() - attempt_start:.2f}s")
         
-        current_targets = next_retry_list
+        final_failed_products = [item for item in next_retry_list]
+
+        current_targets = set(item["product_id"] for item in next_retry_list)
         if not current_targets: break # Dừng nếu không còn sản phẩm lỗi
 
     # Sau 5 lần, ghi những sản phẩm thực sự thất bại
-    for pid in current_targets:
-        safe_write_csv("failed_final.csv", {"id": pid, "status": "FINAL_FAIL", "time": datetime.now()})
+    if final_failed_products:
+        print(f"\n>>> Có {len(final_failed_products)} sản phẩm không thể crawl sau {MAX_RETRIES} lần RETRY:")
+        for item in final_failed_products:
+            safe_write_csv("failed_final.csv", {"id": item["product_id"], "status_code": item["status_code"], "time": datetime.now()})
 
     print(f"\nTOTAL TIME: {time.time() - global_start:.2f}s | Final Success: {stats['total_success']}")
 
