@@ -240,7 +240,7 @@ def get_random_headers():
         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'accept-language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
         'cache-control': 'max-age=0',
-        'referer': 'https://www.google.com/',
+        'referer': 'https://www.glamira.vn/',
         'sec-ch-ua': profile["ch_ua"],
         'sec-ch-ua-mobile': profile["mobile"],
         'sec-ch-ua-platform': profile["platform"],

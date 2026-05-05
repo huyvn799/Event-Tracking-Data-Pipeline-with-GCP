@@ -129,7 +129,10 @@ def crawl_task(pid):
     url = f"https://www.glamira.vn/catalog/product/view/id/{pid}"
     try:
         # Giả lập trình duyệt để tránh 403
-        headers = {'User-Agent': ua.random}
+        headers = {
+            'User-Agent': ua.random,
+            'Referer': 'https://www.glamira.vn/'
+        }
         resp = requests.get(url, headers=headers, timeout=10)
         
         if resp.status_code == 200:
@@ -172,7 +175,7 @@ def run_pipeline(product_ids):
         fail_in_attempt = 0
         next_retry_list = []
         
-        print(f"\n>>> BẮT ĐẦU LẦT {attempt} ({len(current_targets)} SP)")
+        print(f"\n>>> BẮT ĐẦU LẦN {attempt} ({len(current_targets)} SP)")
         
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = [executor.submit(crawl_task, pid) for pid in current_targets]
