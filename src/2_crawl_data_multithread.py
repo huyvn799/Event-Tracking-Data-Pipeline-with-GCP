@@ -130,10 +130,10 @@ def crawl_task(pid):
     try:
         # Giả lập trình duyệt để tránh 403
         headers = {
-            'User-Agent': ua.random,
-            'Referer': 'https://www.glamira.vn/'
+            'User-Agent': f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+            'Referer': f"https://www.glamira.vn/"
         }
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
         
         if resp.status_code == 200:
             html = resp.text
@@ -166,14 +166,14 @@ def get_product_ids_from_db():
 
 # --- PIPELINE ---
 def run_pipeline(product_ids):
-    current_targets = list(product_ids)
+    current_targets = set(product_ids)
     global_start = time.time()
     
     for attempt in range(1, MAX_RETRIES + 1):
         attempt_start = time.time()
         win_in_attempt = 0
         fail_in_attempt = 0
-        next_retry_list = []
+        next_retry_list = set()
         
         print(f"\n>>> BẮT ĐẦU LẦN {attempt} ({len(current_targets)} SP)")
         
@@ -181,16 +181,16 @@ def run_pipeline(product_ids):
             futures = [executor.submit(crawl_task, pid) for pid in current_targets]
             
             for future in futures:
-                status, result = future.result()
+                status, task_result = future.result()
                 
                 if status == "SUCCESS":
                     win_in_attempt += 1
-                    safe_write_jsonl(result)
-                    pid = result["product_id"]
-                    safe_write_csv("success.csv", {"id": pid, "attempt": attempt, "time": datetime.now()})
+                    safe_write_jsonl(task_result)
+                    safe_write_csv("success.csv", {"id": task_result["product_id"], "attempt": attempt, "time": datetime.now()})
                 else:
                     fail_in_attempt += 1
-                    next_retry_list.append(pid)
+                    next_retry_list.add(task_result["product_id"])
+                    safe_write_csv("failed.csv", {"id": task_result["product_id"], "attempt": attempt, "status_code": task_result.get("status_code"), "time": datetime.now()})
                 
                 # Thống kê mỗi 50 sản phẩm
                 total_processed = win_in_attempt + fail_in_attempt
