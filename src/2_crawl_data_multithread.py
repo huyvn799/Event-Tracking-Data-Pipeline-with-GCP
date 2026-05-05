@@ -215,7 +215,7 @@ def run_pipeline(product_ids):
         for item in final_failed_products:
             safe_write_csv("failed_final.csv", {"id": item["product_id"], "status_code": item["status_code"], "time": datetime.now()})
 
-    print(f"\nTOTAL TIME: {time.time() - global_start:.2f}s | Final Success: {stats['total_success']}")
+    print(f"\nTOTAL TIME: {time.time() - global_start:.2f}s | Final Success: {stats['total_success']} | Final Failed: {len(final_failed_products)}")
 
 if __name__ == "__main__":
     product_ids = get_product_ids_from_db()
