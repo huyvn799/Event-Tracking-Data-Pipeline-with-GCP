@@ -169,7 +169,7 @@ def get_product_ids_from_db():
 
 # --- PIPELINE ---
 def run_pipeline(product_ids):
-    current_targets = set(product_ids)
+    current_targets = list(product_ids)
     global_start = time.time()
     final_failed_products = []
 
@@ -177,7 +177,7 @@ def run_pipeline(product_ids):
         attempt_start = time.time()
         win_in_attempt = 0
         fail_in_attempt = 0
-        next_retry_list = set()
+        next_retry_list = []
         
         print(f"\n>>> BẮT ĐẦU LẦN {attempt} ({len(current_targets)} SP)")
         
@@ -193,7 +193,7 @@ def run_pipeline(product_ids):
                     safe_write_csv("success.csv", {"id": task_result["product_id"], "attempt": attempt, "time": datetime.now()})
                 else:
                     fail_in_attempt += 1
-                    next_retry_list.add({"product_id": task_result["product_id"], "status_code": status})
+                    next_retry_list.append({"product_id": task_result["product_id"], "status_code": status})
                     safe_write_csv("failed_retry.csv", {"id": task_result["product_id"], "attempt": attempt, "status_code": task_result.get("status_code"), "time": datetime.now()})
                 
                 # Thống kê mỗi 50 sản phẩm
@@ -206,7 +206,7 @@ def run_pipeline(product_ids):
         
         final_failed_products = [item for item in next_retry_list]
 
-        current_targets = set(item["product_id"] for item in next_retry_list)
+        current_targets = [item["product_id"] for item in next_retry_list]
         if not current_targets: break # Dừng nếu không còn sản phẩm lỗi
 
     # Sau 5 lần, ghi những sản phẩm thực sự thất bại
