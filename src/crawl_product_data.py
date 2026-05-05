@@ -639,7 +639,7 @@ if __name__ == "__main__":
     # Lấy product_ids từ temp collection rồi crawl
     product_ids = get_product_ids_from_db()
     print(f"Tìm thấy {len(product_ids)} sản phẩm cần crawl.")
-    # asyncio.run(main_pipeline_new(product_ids))
+    asyncio.run(main_pipeline_new(product_ids))
 
     # Chạy tuần tự để lấy product_ids rồi mới crawl
     # products, prep_time = prepare_data(), 0 # Lấy unique product ids và thời gian chuẩn bị
