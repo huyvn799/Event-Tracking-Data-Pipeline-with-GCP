@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from urllib.parse import quote_plus
 import pymongo
 import shutil
+import asyncio
 
 # --- CẤU HÌNH ---
 load_dotenv()
@@ -25,13 +26,14 @@ DB_NAME = os.getenv("MONGO_DB_NAME")
 COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 
 # --- CẤU HÌNH ---
-MAX_WORKERS = 10
+MAX_WORKERS = 5
 MAX_RETRIES = 5
-BATCH_SIZE = 50
+BATCH_SIZE = 100
 OUTPUT_DIR = "output/crawl_data4"
 LOG_DIR = "output/logs4"
 RECORDS_PER_FILE = 1000
 CHECKPOINT_BATCH_SIZE = 100
+STATS_BATCH_SIZE = 50
 CHECKPOINT_FILE = "checkpoint.json"
 SUCCESS_CSV = "success.csv"
 FAILED_RETRY_CSV = "failed_retry.csv"
@@ -125,7 +127,7 @@ def get_checkpoint():
                 if not content:
                     return default_checkpoint
                 return json.loads(content)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             print(f"[!] Checkpoint bị hỏng: {e}. Sử dụng giá trị mặc định.")
             return default_checkpoint
 
@@ -272,13 +274,13 @@ def get_product_ids_needing_crawling(product_ids):
 
     return current_targets, start_index, current_jsonl_file, data_file_index
 # --- PIPELINE ---
-def run_pipeline(all_product_ids):
+def run_pipeline(all_product_ids, batch_size=BATCH_SIZE):
 
     current_targets, start_index, current_jsonl_file, data_file_index = get_product_ids_needing_crawling(all_product_ids)
 
     global_start = time.time()
     final_failed_products = []
-
+    
     for attempt in range(1, MAX_RETRIES + 1):
         attempt_start = time.time()
         win_in_attempt = 0
@@ -286,55 +288,60 @@ def run_pipeline(all_product_ids):
         next_retry_list = []
         
         print(f"\n>>> BẮT ĐẦU LẦN {attempt} ({len(current_targets)} SP)")
-        
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            # Ánh xạ Future với Product ID (Mapping Pattern) để tránh lỗi logic nhầm ID
-            future_to_pid = {executor.submit(crawl_task, pid): str(pid) for pid in current_targets}
-            try:
-                for future in as_completed(future_to_pid):
-                    pid = future_to_pid[future] # Biết ngay PID kể cả khi future.result() bị lỗi
-                    # print(f"✓ Đang chờ kết quả PID {pid}...") # Log này cực kỳ quan trọng để theo dõi tiến trình
-                    try:
-                        status, task_result = future.result(timeout=30) # Thêm timeout cho từng future để tránh treo lâu
-                        
-                        if status == "SUCCESS" and task_result is not None:
-                            win_in_attempt += 1
 
-                            if pid in next_retry_list:
-                                next_retry_list.remove(pid)  # Đảm bảo không có trong danh sách retry
+        for i in range(0, len(current_targets), batch_size):
+            batch_start_time = time.time()
+            batch_pids = list(current_targets)[i:i+batch_size]
 
-                            safe_write_jsonl(task_result, stats)
-                            safe_write_csv(SUCCESS_CSV, {"id": pid, "attempt": attempt, "time": datetime.now()})
+            print(f"   [Lượt {attempt}] Xử lý batch {i//batch_size + 1} với ({len(batch_pids)} SP)...")
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                # Ánh xạ Future với Product ID (Mapping Pattern) để tránh lỗi logic nhầm ID
+                future_to_pid = {executor.submit(crawl_task, pid): str(pid) for pid in batch_pids}
+                try:
+                    for future in as_completed(future_to_pid):
+                        pid = future_to_pid[future] # Biết ngay PID kể cả khi future.result() bị lỗi
+                        # print(f"✓ Đang chờ kết quả PID {pid}...") # Log này cực kỳ quan trọng để theo dõi tiến trình
+                        try:
+                            status, task_result = future.result() # Thêm timeout cho từng future để tránh treo lâu
+                            
+                            if status == "SUCCESS" and task_result is not None:
+                                win_in_attempt += 1
 
-                            data_file_index = stats['total_success'] // RECORDS_PER_FILE
-                            current_jsonl_file = f"data_part_{data_file_index}.jsonl"
-                        else:
-                            fail_in_attempt += 1
-                            next_retry_list.append({"product_id": str(pid), "status_code": status})
-                            safe_write_csv(FAILED_RETRY_CSV, {"id": str(pid), "attempt": attempt, "status_code": status, "time": datetime.now()})
-                        
-                        # Thống kê mỗi 50 sản phẩm
-                        total_processed = win_in_attempt + fail_in_attempt
-                        if total_processed % BATCH_SIZE == 0:
-                            print(f"   [Thống kê] Đã xong {total_processed} SP | Thành công: {win_in_attempt} | Thất bại: {fail_in_attempt}")
+                                # Đảm bảo không có trong danh sách retry
+                                next_retry_list = [item for item in next_retry_list if item.get("product_id") != pid]
 
-                        # Cập nhật checkpoint sau mỗi batch (100 sản phẩm) được xử lý
-                        if total_processed % CHECKPOINT_BATCH_SIZE == 0:
-                            save_checkpoint(min(start_index + total_processed, len(all_product_ids)), 
-                                            current_jsonl_file, 
-                                            data_file_index)
+                                safe_write_jsonl(task_result, stats)
+                                safe_write_csv(SUCCESS_CSV, {"id": pid, "attempt": attempt, "time": datetime.now()})
 
-                    except Exception as e:
-                        print(f"✗ Không lấy được result của future với pid {pid}: {e}")
-                        next_retry_list.append({"product_id": str(pid), "status_code": "Timeout"})
-                        safe_write_csv(FAILED_RETRY_CSV, {"id": str(pid), "attempt": attempt, "status_code": "Timeout", "time": datetime.now()})
-            except Exception as e:
-                print(f"✗ Lỗi khi chờ Future hoàn thành: {e}")
-                
+                                data_file_index = stats['total_success'] // RECORDS_PER_FILE
+                                current_jsonl_file = f"data_part_{data_file_index}.jsonl"
+                            else:
+                                fail_in_attempt += 1
+                                next_retry_list.append({"product_id": str(pid), "status_code": status})
+                                safe_write_csv(FAILED_RETRY_CSV, {"id": str(pid), "attempt": attempt, "status_code": status, "time": datetime.now()})
+                            
+                            # Thống kê mỗi 50 sản phẩm
+                            total_processed = win_in_attempt + fail_in_attempt
+                            if total_processed % BATCH_SIZE == 0:
+                                print(f"   [Thống kê] Đã xong {total_processed} SP | Thành công: {win_in_attempt} | Thất bại: {fail_in_attempt}")
+
+                            # Cập nhật checkpoint sau mỗi batch (100 sản phẩm) được xử lý
+                            if total_processed % CHECKPOINT_BATCH_SIZE == 0:
+                                save_checkpoint(min(start_index + total_processed, len(all_product_ids)), 
+                                                current_jsonl_file, 
+                                                data_file_index)
+
+                        except Exception as e:
+                            print(f"✗ Không lấy được result của future với pid {pid}: {e}")
+                            next_retry_list.append({"product_id": str(pid), "status_code": "Timeout"})
+                            safe_write_csv(FAILED_RETRY_CSV, {"id": str(pid), "attempt": attempt, "status_code": "Timeout", "time": datetime.now()})
+                except Exception as e:
+                    print(f"✗ Lỗi khi chờ Future hoàn thành: {e}")
+
+            print(f"   [Lượt {attempt}] Đã xong batch {i//batch_size + 1} với {win_in_attempt + fail_in_attempt} SP | Thành công: {win_in_attempt} | Thất bại: {fail_in_attempt} | Thời gian batch: {time.time() - batch_start_time:.2f}s")
+
         print(f"--- Kết quả lượt {attempt}: Thành công {win_in_attempt}, Thất bại {fail_in_attempt}")
         print(f"--- Thời gian lượt: {time.time() - attempt_start:.2f}s")
-        
-        
         final_failed_products = [item for item in next_retry_list]  # Cập nhật danh sách thất bại cuối cùng sau mỗi lượt
 
         current_targets = set(str(item["product_id"]) for item in next_retry_list)
