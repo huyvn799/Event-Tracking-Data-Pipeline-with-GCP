@@ -25,7 +25,7 @@ DB_NAME = os.getenv("MONGO_DB_NAME")
 COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 
 # --- CẤU HÌNH ---
-MAX_WORKERS = 5
+MAX_WORKERS = 10
 MAX_RETRIES = 5
 BATCH_SIZE = 50
 OUTPUT_DIR = "output/crawl_data4"
@@ -122,7 +122,7 @@ def save_checkpoint(index, filename, data_file_index):
     with file_lock:
         file_path = os.path.join(LOG_DIR, CHECKPOINT_FILE)
         with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(json.dump({
+            f.write(json.dumps({
                 'last_index': index,
                 'current_file': filename,
                 'data_file_index': data_file_index
@@ -219,9 +219,7 @@ def get_product_ids_from_db():
         print(f"✗ Lỗi khi kết nối hoặc truy vấn MongoDB: {e}")
         return []
 
-# --- PIPELINE ---
-def run_pipeline(product_ids):
-
+def get_product_ids_needing_crawling(product_ids):
     sorted_products_ids = sorted(product_ids)
     current_targets = set()
 
@@ -253,6 +251,12 @@ def run_pipeline(product_ids):
     else:
         current_targets = set(sorted_products_ids)
         print(">>> Không tìm thấy checkpoint, bắt đầu từ đầu.")
+
+    return current_targets, start_index, current_jsonl_file, data_file_index
+# --- PIPELINE ---
+def run_pipeline(all_product_ids):
+
+    current_targets, start_index, current_jsonl_file, data_file_index = get_product_ids_needing_crawling(all_product_ids)
 
     global_start = time.time()
     final_failed_products = []
@@ -298,7 +302,7 @@ def run_pipeline(product_ids):
 
                         # Cập nhật checkpoint sau mỗi batch (100 sản phẩm) được xử lý
                         if total_processed % CHECKPOINT_BATCH_SIZE == 0:
-                            save_checkpoint(min(start_index + total_processed, len(sorted_products_ids)), 
+                            save_checkpoint(min(start_index + total_processed, len(all_product_ids)), 
                                             current_jsonl_file, 
                                             data_file_index)
 
