@@ -111,23 +111,41 @@ def extract_react_data(html_content):
 
 # --- GHI FILE AN TOÀN ---
 def get_checkpoint():
+    file_path = os.path.join(LOG_DIR, CHECKPOINT_FILE)
+
+    default_checkpoint = {"last_index": 0, "current_file": "data_part_0.jsonl", "data_file_index": 0}
+
+    if not os.path.exists(file_path):
+        return default_checkpoint
+    
     with file_lock:
-        file_path = os.path.join(LOG_DIR, CHECKPOINT_FILE)
-        if os.path.exists(file_path):
+        try:
             with open(file_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-    return {"last_index": 0, "current_file": "data_part_0.jsonl", "data_file_index": 0}
+                content = f.read().strip()
+                if not content:
+                    return default_checkpoint
+                return json.loads(content)
+        except json.JSONDecodeError:
+            print(f"[!] Checkpoint bị hỏng: {e}. Sử dụng giá trị mặc định.")
+            return default_checkpoint
 
 def save_checkpoint(index, filename, data_file_index):
+    file_path = os.path.join(LOG_DIR, CHECKPOINT_FILE)
+    temp_path = file_path + ".tmp"
+    
+    data = {
+        'last_index': index,
+        'current_file': filename,
+        'data_file_index': data_file_index
+    }
+    
     with file_lock:
-        file_path = os.path.join(LOG_DIR, CHECKPOINT_FILE)
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(json.dumps({
-                'last_index': index,
-                'current_file': filename,
-                'data_file_index': data_file_index
-            }, ensure_ascii=False))
-    return
+        # Ghi vào file tạm (.tmp)
+        with open(temp_path, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(data, ensure_ascii=False))
+        
+        # Đổi tên file tạm thành file chính (thao tác này cực nhanh và an toàn)
+        os.replace(temp_path, file_path)
 
 def safe_write_jsonl(data, stats=stats):
     with file_lock:
