@@ -269,7 +269,7 @@ def run_pipeline(product_ids):
             # Ánh xạ Future với Product ID (Mapping Pattern) để tránh lỗi logic nhầm ID
             future_to_pid = {executor.submit(crawl_task, pid): str(pid) for pid in current_targets}
             try:
-                for future in as_completed(future_to_pid, timeout=30):
+                for future in as_completed(future_to_pid):
                     pid = future_to_pid[future] # Biết ngay PID kể cả khi future.result() bị lỗi
                     # print(f"✓ Đang chờ kết quả PID {pid}...") # Log này cực kỳ quan trọng để theo dõi tiến trình
                     try:
