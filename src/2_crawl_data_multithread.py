@@ -322,11 +322,11 @@ def run_pipeline(all_product_ids, batch_size=BATCH_SIZE):
                             
                             # Thống kê mỗi 50 sản phẩm
                             total_processed = win_in_attempt + fail_in_attempt
-                            if total_processed % BATCH_SIZE == 0:
+                            if total_processed % STATS_BATCH_SIZE == 0 or total_processed == len(current_targets):
                                 print(f"   [Thống kê] Đã xong {total_processed} SP | Thành công: {win_in_attempt} | Thất bại: {fail_in_attempt}")
 
                             # Cập nhật checkpoint sau mỗi batch (100 sản phẩm) được xử lý
-                            if total_processed % CHECKPOINT_BATCH_SIZE == 0:
+                            if total_processed % CHECKPOINT_BATCH_SIZE == 0 or total_processed == len(current_targets):
                                 save_checkpoint(min(start_index + total_processed, len(all_product_ids)), 
                                                 current_jsonl_file, 
                                                 data_file_index)
