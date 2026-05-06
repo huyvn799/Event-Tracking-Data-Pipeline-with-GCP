@@ -28,9 +28,14 @@ COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 MAX_WORKERS = 5
 MAX_RETRIES = 5
 BATCH_SIZE = 50
-OUTPUT_DIR = "output/crawl_data3"
-LOG_DIR = "output/logs3"
+OUTPUT_DIR = "output/crawl_data4"
+LOG_DIR = "output/logs4"
 RECORDS_PER_FILE = 1000
+CHECKPOINT_BATCH_SIZE = 100
+CHECKPOINT_FILE = "checkpoint.json"
+SUCCESS_CSV = "success.csv"
+FAILED_RETRY_CSV = "failed_retry.csv"
+FAILED_FINAL_CSV = "failed_final.csv"
 
 shutil.rmtree(OUTPUT_DIR) if os.path.exists(OUTPUT_DIR) else None
 shutil.rmtree(LOG_DIR) if os.path.exists(LOG_DIR) else None
@@ -107,9 +112,28 @@ def extract_react_data(html_content):
         return "JSON_DECODE_ERROR"
     except Exception as e:
         return f"EXTRACTION_ERROR_{type(e).__name__}"
-    
+
 # --- GHI FILE AN TOÀN ---
-def safe_write_jsonl(data):
+def get_checkpoint():
+    with file_lock:
+        file_path = os.path.join(LOG_DIR, CHECKPOINT_FILE)
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    return {"last_index": 0, "current_file": "data_part_0.jsonl", "data_file_index": 0}
+
+def save_checkpoint(index, filename, data_file_index):
+    with file_lock:
+        file_path = os.path.join(LOG_DIR, CHECKPOINT_FILE)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(json.dump({
+                'last_index': index,
+                'current_file': filename,
+                'data_file_index': data_file_index
+            }, ensure_ascii=False))
+    return
+
+def safe_write_jsonl(data, stats=stats):
     with file_lock:
         file_index = stats['total_success'] // RECORDS_PER_FILE
         file_path = os.path.join(OUTPUT_DIR, f"data_part_{file_index}.jsonl")
@@ -126,6 +150,28 @@ def safe_write_csv(file_name, row):
             if not file_exists:
                 writer.writeheader()
             writer.writerow(row)
+
+def get_finished_ids_from_csv():
+    """Đọc file CSV để lấy tập hợp các ID đã thành công (lọc trùng)."""
+    finished_ids = set()
+    file_path = os.path.join(LOG_DIR, SUCCESS_CSV)
+    if os.path.exists(file_path):
+        with open(file_path, mode='r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if row: finished_ids.add(row[0]) # ID nằm ở cột đầu tiên
+    return finished_ids
+
+def get_failed_ids_from_csv():
+    """Đọc file CSV để lấy tập hợp các ID đã thất bại (bố sung)."""
+    failed_ids = set()
+    file_path = os.path.join(LOG_DIR, FAILED_FINAL_CSV)
+    if os.path.exists(file_path):
+        with open(file_path, mode='r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if row: failed_ids.add(row[0]) # ID nằm ở cột đầu tiên
+    return failed_ids
 
 # --- WORKER CHÍNH ---
 def crawl_task(pid):
@@ -177,15 +223,47 @@ def get_product_ids_from_db():
 
 # --- PIPELINE ---
 def run_pipeline(product_ids):
-    current_targets = list(product_ids)
+
+    sorted_products_ids = sorted(product_ids)
+    current_targets = set()
+
+    checkpoint = get_checkpoint()
+    start_index = 0
+    current_jsonl_file = f"data_part_0.jsonl"
+    data_file_index = 0
+
+    # Nếu có checkpoint, khởi động lại từ đó, đồng thời lọc ra những ID đã thành công để tránh crawl lại
+    if checkpoint["last_index"] > 0:
+        start_index = checkpoint["last_index"]
+        current_jsonl_file = checkpoint["current_file"]
+        data_file_index = checkpoint["data_file_index"]
+        print(f">>> Phát hiện checkpoint tại index {checkpoint['last_index']}, file {checkpoint['current_file']}.")
+        
+        # Lấy danh sách ID đã thành công để loại trừ khỏi danh sách crawl lần này
+        finished_ids = get_finished_ids_from_csv()
+        current_targets = set(pid for pid in sorted_products_ids[start_index:] if str(pid) not in finished_ids)
+
+        # Bổ sung những ID đã thất bại ở lần trước vào danh sách crawl lần này để retry
+        failed_ids = get_failed_ids_from_csv()
+        current_targets.update(pid for pid in failed_ids if str(pid) not in finished_ids)
+
+        current_targets = set(sorted(current_targets))  # Sắp xếp lại để có thứ tự nhất định
+
+        # Update lại stats['total_success'] dựa trên số lượng ID đã thành công để đảm bảo data_file_index được tính đúng
+        stats['total_success'] = len(finished_ids)
+        print(f"[*] Resume từ index {start_index}. Cần xử lý: {len(current_targets)} sản phẩm.")
+    else:
+        current_targets = set(sorted_products_ids)
+        print(">>> Không tìm thấy checkpoint, bắt đầu từ đầu.")
+
     global_start = time.time()
-    final_failed_products = []
+    final_failed_products = set()
 
     for attempt in range(1, MAX_RETRIES + 1):
         attempt_start = time.time()
         win_in_attempt = 0
         fail_in_attempt = 0
-        next_retry_list = []
+        next_retry_list = set()
         
         print(f"\n>>> BẮT ĐẦU LẦN {attempt} ({len(current_targets)} SP)")
         
@@ -199,35 +277,46 @@ def run_pipeline(product_ids):
                     
                     if status == "SUCCESS":
                         win_in_attempt += 1
-                        safe_write_jsonl(task_result)
-                        safe_write_csv("success.csv", {"id": pid, "attempt": attempt, "time": datetime.now()})
+                        next_retry_list.discard(pid)  # Đảm bảo không có trong danh sách retry
+
+                        data_file_index = stats['total_success'] // RECORDS_PER_FILE
+                        current_jsonl_file = f"data_part_{data_file_index}.jsonl"
+                        safe_write_jsonl(task_result, stats)
+                        safe_write_csv(SUCCESS_CSV, {"id": pid, "attempt": attempt, "time": datetime.now()})
                     else:
                         fail_in_attempt += 1
-                        next_retry_list.append({"product_id": pid, "status_code": status})
-                        safe_write_csv("failed_retry.csv", {"id": pid, "attempt": attempt, "status_code": task_result.get("status_code"), "time": datetime.now()})
+                        next_retry_list.add({"product_id": pid, "status_code": status})
+                        safe_write_csv(FAILED_RETRY_CSV, {"id": pid, "attempt": attempt, "status_code": task_result.get("status_code"), "time": datetime.now()})
                     
                     # Thống kê mỗi 50 sản phẩm
                     total_processed = win_in_attempt + fail_in_attempt
                     if total_processed % BATCH_SIZE == 0:
                         print(f"   [Thống kê] Đã xong {total_processed} SP | Thành công: {win_in_attempt} | Thất bại: {fail_in_attempt}")
-                
+
+                    # Cập nhật checkpoint sau mỗi batch (100 sản phẩm) được xử lý
+                    if total_processed % CHECKPOINT_BATCH_SIZE == 0:
+                        save_checkpoint(min(start_index + total_processed, len(sorted_products_ids)), 
+                                        current_jsonl_file, 
+                                        data_file_index)
+
                 except Exception as e:
-                    next_retry_list.append({"product_id": pid, "status_code": status})
-                    safe_write_csv("failed_retry.csv", {"id": pid, "attempt": attempt, "status_code": "Timeout", "time": datetime.now()})
+                    next_retry_list.add({"product_id": pid, "status_code": status})
+                    safe_write_csv(FAILED_RETRY_CSV, {"id": pid, "attempt": attempt, "status_code": "Timeout", "time": datetime.now()})
         
         print(f"--- Kết quả lượt {attempt}: Thành công {win_in_attempt}, Thất bại {fail_in_attempt}")
         print(f"--- Thời gian lượt: {time.time() - attempt_start:.2f}s")
         
-        final_failed_products = [item for item in next_retry_list]
+        
+        final_failed_products = set(item for item in next_retry_list)  # Cập nhật danh sách thất bại cuối cùng sau mỗi lượt
 
-        current_targets = [item["product_id"] for item in next_retry_list]
+        current_targets = set(item["product_id"] for item in next_retry_list)
         if not current_targets: break # Dừng nếu không còn sản phẩm lỗi
 
     # Sau 5 lần, ghi những sản phẩm thực sự thất bại
     if final_failed_products:
         print(f"\n>>> Có {len(final_failed_products)} sản phẩm không thể crawl sau {MAX_RETRIES} lần RETRY:")
         for item in final_failed_products:
-            safe_write_csv("failed_final.csv", {"id": item["product_id"], "status_code": item["status_code"], "time": datetime.now()})
+            safe_write_csv(FAILED_FINAL_CSV, {"id": item["product_id"], "status_code": item["status_code"], "time": datetime.now()})
 
     print(f"\nTOTAL TIME: {time.time() - global_start:.2f}s | Final Success: {stats['total_success']} | Final Failed: {len(final_failed_products)}")
 
