@@ -37,10 +37,6 @@ SUCCESS_CSV = "success.csv"
 FAILED_RETRY_CSV = "failed_retry.csv"
 FAILED_FINAL_CSV = "failed_final.csv"
 
-shutil.rmtree(OUTPUT_DIR) if os.path.exists(OUTPUT_DIR) else None
-shutil.rmtree(LOG_DIR) if os.path.exists(LOG_DIR) else None
-for d in [OUTPUT_DIR, LOG_DIR]: os.makedirs(d, exist_ok=True)
-
 # Danh sách các thông tin bạn THỰC SỰ muốn lấy
 KEYS_TO_KEEP = [
     "product_id",
@@ -275,7 +271,7 @@ def run_pipeline(product_ids):
             try:
                 for future in as_completed(future_to_pid, timeout=30):
                     pid = future_to_pid[future] # Biết ngay PID kể cả khi future.result() bị lỗi
-                    print(f"✓ Đang chờ kết quả PID {pid}...") # Log này cực kỳ quan trọng để theo dõi tiến trình
+                    # print(f"✓ Đang chờ kết quả PID {pid}...") # Log này cực kỳ quan trọng để theo dõi tiến trình
                     try:
                         status, task_result, prod_id = future.result(timeout=30) # Thêm timeout cho từng future để tránh treo lâu
                         
@@ -331,5 +327,11 @@ def run_pipeline(product_ids):
     print(f"\nTOTAL TIME: {time.time() - global_start:.2f}s | Final Success: {stats['total_success']} | Final Failed: {len(final_failed_products)}")
 
 if __name__ == "__main__":
+    # Xoá dữ liệu cũ khi checkpoint == 0 (nếu bắt đầu từ đầu), đồng thời tạo thư mục nếu chưa có
+    if get_checkpoint()["last_index"] == 0:
+        shutil.rmtree(OUTPUT_DIR) if os.path.exists(OUTPUT_DIR) else None
+        shutil.rmtree(LOG_DIR) if os.path.exists(LOG_DIR) else None
+    for d in [OUTPUT_DIR, LOG_DIR]: os.makedirs(d, exist_ok=True)
+
     product_ids = get_product_ids_from_db()
     run_pipeline(product_ids)
