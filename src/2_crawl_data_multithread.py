@@ -197,12 +197,12 @@ def crawl_task(pid):
             
             if isinstance(cleaned_data, dict):
                 record = {"product_id": pid, "data": cleaned_data, "crawled_at": datetime.now().isoformat()}
-                return "SUCCESS", record, pid
+                return "SUCCESS", record
 
-            return "ERR_NO_DATA", None, pid
-        return f"HTTP_{resp.status_code}", None, pid
+            return "ERR_NO_DATA", None
+        return f"HTTP_{resp.status_code}", None
     except Exception as e:
-        return f"ERR_{type(e).__name__}", None, pid
+        return f"ERR_{type(e).__name__}", None
 
 def get_product_ids_from_db():
     """Hàm này có thể được sử dụng để lấy danh sách product_id trực tiếp từ MongoDB nếu cần."""
@@ -273,9 +273,9 @@ def run_pipeline(product_ids):
                     pid = future_to_pid[future] # Biết ngay PID kể cả khi future.result() bị lỗi
                     # print(f"✓ Đang chờ kết quả PID {pid}...") # Log này cực kỳ quan trọng để theo dõi tiến trình
                     try:
-                        status, task_result, prod_id = future.result(timeout=30) # Thêm timeout cho từng future để tránh treo lâu
+                        status, task_result = future.result(timeout=30) # Thêm timeout cho từng future để tránh treo lâu
                         
-                        if status == "SUCCESS":
+                        if status == "SUCCESS" and task_result is not None:
                             win_in_attempt += 1
 
                             if pid in next_retry_list:
@@ -289,7 +289,7 @@ def run_pipeline(product_ids):
                         else:
                             fail_in_attempt += 1
                             next_retry_list.append({"product_id": str(pid), "status_code": status})
-                            safe_write_csv(FAILED_RETRY_CSV, {"id": str(pid), "attempt": attempt, "status_code": task_result.get("status_code"), "time": datetime.now()})
+                            safe_write_csv(FAILED_RETRY_CSV, {"id": str(pid), "attempt": attempt, "status_code": status, "time": datetime.now()})
                         
                         # Thống kê mỗi 50 sản phẩm
                         total_processed = win_in_attempt + fail_in_attempt
