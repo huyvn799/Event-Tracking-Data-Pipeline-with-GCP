@@ -5,14 +5,10 @@ import pyarrow.parquet as pq
 from pymongo import MongoClient
 from google.cloud import storage
 from datetime import datetime
+import time
 import os
 from dotenv import load_dotenv
 from urllib.parse import quote_plus
-
-
-BUCKET_RAW_DATA_DIR = "raw_data"
-OUTPUT_DIR = "output/temp"
-LOG_DIR = "output/logs"
 
 load_dotenv()
 
@@ -23,6 +19,14 @@ PORT = os.getenv("MONGO_PORT") or "27017"
 DB_NAME = os.getenv("MONGO_DB_NAME")
 COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
+
+
+BUCKET_RAW_DATA_DIR = "raw_data"
+OUTPUT_DIR = "output/temp"
+LOG_DIR = "output/logs"
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
 
 # 1. Cấu hình Logging chi tiết
 logging.basicConfig(
@@ -64,9 +68,11 @@ def export_to_gcs():
                 if len(batch) == BATCH_SIZE or i == total_docs - 1:
                     batch_count += 1
                     df = pd.DataFrame(batch)
+                    logging.info(f"Đang xử lý Batch {batch_count} với {len(batch)} dòng...")
                     
                     # 3. Chuyển đổi sang Table của PyArrow (Tối ưu hơn Pandas đơn thuần)
                     table = pa.Table.from_pandas(df)
+                    logging.info(f"Batch {batch_count} đã chuyển đổi sang Table PyArrow.")
 
                     # Tạo tên file theo ngày và số batch để dễ quản lý
                     current_date = datetime.now().strftime("%Y-%m-%d")
@@ -77,10 +83,14 @@ def export_to_gcs():
                     logging.info(f"Đang convert Batch {batch_count} sang Parquet...")
                     pq.write_table(table, local_path, compression='snappy')
 
+                    logging.info(f"Batch {batch_count} đã được convert sang Parquet tại {local_path}.")
+
                     # 5. Upload lên GCS[cite: 1]
                     logging.info(f"Đang upload {file_name} lên GCS...")
                     blob = bucket.blob(file_name)
                     blob.upload_from_filename(local_path)
+
+                    logging.info(f"Batch {batch_count} đã được upload lên GCS tại {file_name}.")
 
                     # Dọn dẹp file tạm và log tiến độ[cite: 1]
                     os.remove(local_path)
@@ -88,7 +98,9 @@ def export_to_gcs():
                     logging.info(f"Hoàn thành Batch {batch_count}. Đã xử lý: {total_processed}/{total_docs}")
                     
                     batch = [] # Reset batch
-
+                    
+                    logging.info(f"Đang chờ 5 giây trước khi tiếp tục batch tiếp theo...")
+                    time.sleep(5) # Tạm dừng 5 giây giữa các batch để tránh quá tải hệ thống và bị rate limit từ GCS
                     break # Thử nghiệm chỉ chạy 1 batch đầu tiên để kiểm tra hệ thống, bỏ break để chạy toàn bộ dữ liệu
 
             logging.info("--- QUY TRÌNH HOÀN TẤT THÀNH CÔNG ---")
