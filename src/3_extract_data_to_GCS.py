@@ -1,6 +1,8 @@
 import logging
 import pandas as pd
-import pymongo
+import pyarrow as pa
+import pyarrow.parquet as pq
+from pymongo import MongoClient
 from google.cloud import storage
 from datetime import datetime
 import os
@@ -20,6 +22,7 @@ HOST = os.getenv("MONGO_HOST") or "localhost"
 PORT = os.getenv("MONGO_PORT") or "27017"
 DB_NAME = os.getenv("MONGO_DB_NAME")
 COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
 # 1. Cấu hình Logging chi tiết
 logging.basicConfig(
@@ -29,11 +32,6 @@ logging.basicConfig(
 )
 
 def export_to_gcs():
-    # Thông số cấu hình
-    MONGO_URI = f"mongodb://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/"
-    DB_NAME = os.getenv("MONGO_DB_NAME")
-    COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
-    GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
     BATCH_SIZE = 100000  # Mỗi batch xử lý 100k dòng để tránh tràn RAM
     
     try:
@@ -42,7 +40,7 @@ def export_to_gcs():
             uri = f"mongodb://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/"
         else:
             uri = f"mongodb://{HOST}:{PORT}/"
-        client = pymongo.MongoClient(uri, serverSelectionTimeoutMS=10000)
+        client = MongoClient(uri, serverSelectionTimeoutMS=10000)
         db = client[DB_NAME]
         collection = db[COLLECTION_NAME]
         total_docs = collection.count_documents({})
@@ -67,6 +65,9 @@ def export_to_gcs():
                     batch_count += 1
                     df = pd.DataFrame(batch)
                     
+                    # 3. Chuyển đổi sang Table của PyArrow (Tối ưu hơn Pandas đơn thuần)
+                    table = pa.Table.from_pandas(df)
+
                     # Tạo tên file theo ngày và số batch để dễ quản lý
                     current_date = datetime.now().strftime("%Y-%m-%d")
                     file_name = f"{BUCKET_RAW_DATA_DIR}/{current_date}/batch_{batch_count}.parquet"
@@ -74,7 +75,7 @@ def export_to_gcs():
 
                     # 4. Convert sang Parquet (Nén Snappy mặc định)[cite: 1]
                     logging.info(f"Đang convert Batch {batch_count} sang Parquet...")
-                    df.to_parquet(local_path, index=False)
+                    pq.write_table(table, local_path, compression='snappy')
 
                     # 5. Upload lên GCS[cite: 1]
                     logging.info(f"Đang upload {file_name} lên GCS...")
@@ -87,6 +88,8 @@ def export_to_gcs():
                     logging.info(f"Hoàn thành Batch {batch_count}. Đã xử lý: {total_processed}/{total_docs}")
                     
                     batch = [] # Reset batch
+
+                    break # Thử nghiệm chỉ chạy 1 batch đầu tiên để kiểm tra hệ thống, bỏ break để chạy toàn bộ dữ liệu
 
             logging.info("--- QUY TRÌNH HOÀN TẤT THÀNH CÔNG ---")
 
