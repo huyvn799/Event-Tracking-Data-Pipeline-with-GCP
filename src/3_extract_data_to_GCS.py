@@ -47,63 +47,63 @@ def export_to_gcs():
         client = MongoClient(uri, serverSelectionTimeoutMS=10000)
         db = client[DB_NAME]
         collection = db[COLLECTION_NAME]
-        total_docs = collection.count_documents({})
+        total_docs = collection.estimated_document_count()
         logging.info(f"Bắt đầu Extract. Tổng cộng: {total_docs} dòng.")
 
         # Kết nối GCS
-        with storage.Client() as storage_client:
-            bucket = storage_client.bucket(GCS_BUCKET_NAME)
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(GCS_BUCKET_NAME)
 
-            # 3. Extract dữ liệu theo Batch
-            cursor = collection.find({})
-            batch = []
-            batch_count = 0
-            total_processed = 0
+        # 3. Extract dữ liệu theo Batch
+        cursor = collection.find({}, no_cursor_timeout=True)
+        batch = []
+        batch_count = 0
+        total_processed = 0
 
-            for i, doc in enumerate(cursor):
-                # Xử lý ObjectId của MongoDB vì Parquet không đọc được trực tiếp
-                doc['_id'] = str(doc['_id'])
-                batch.append(doc)
+        for i, doc in enumerate(cursor):
+            # Xử lý ObjectId của MongoDB vì Parquet không đọc được trực tiếp
+            doc['_id'] = str(doc['_id'])
+            batch.append(doc)
 
-                if len(batch) == BATCH_SIZE or i == total_docs - 1:
-                    batch_count += 1
-                    df = pd.DataFrame(batch)
-                    logging.info(f"Đang xử lý Batch {batch_count} với {len(batch)} dòng...")
-                    
-                    # 3. Chuyển đổi sang Table của PyArrow (Tối ưu hơn Pandas đơn thuần)
-                    table = pa.Table.from_pandas(df)
-                    logging.info(f"Batch {batch_count} đã chuyển đổi sang Table PyArrow.")
+            if len(batch) == BATCH_SIZE or i == total_docs - 1:
+                batch_count += 1
+                df = pd.DataFrame(batch)
+                logging.info(f"Đang xử lý Batch {batch_count} với {len(batch)} dòng...")
+                
+                # 3. Chuyển đổi sang Table của PyArrow (Tối ưu hơn Pandas đơn thuần)
+                table = pa.Table.from_pandas(df)
+                logging.info(f"Batch {batch_count} đã chuyển đổi sang Table PyArrow.")
 
-                    # Tạo tên file theo ngày và số batch để dễ quản lý
-                    current_date = datetime.now().strftime("%Y-%m-%d")
-                    file_name = f"{BUCKET_RAW_DATA_DIR}/{current_date}/batch_{batch_count}.parquet"
-                    local_path = f"{OUTPUT_DIR}/temp_batch_{batch_count}.parquet"
+                # Tạo tên file theo ngày và số batch để dễ quản lý
+                current_date = datetime.now().strftime("%Y-%m-%d")
+                file_name = f"{BUCKET_RAW_DATA_DIR}/{current_date}/batch_{batch_count}.parquet"
+                local_path = f"{OUTPUT_DIR}/temp_batch_{batch_count}.parquet"
 
-                    # 4. Convert sang Parquet (Nén Snappy mặc định)[cite: 1]
-                    logging.info(f"Đang convert Batch {batch_count} sang Parquet...")
-                    pq.write_table(table, local_path, compression='snappy')
+                # 4. Convert sang Parquet (Nén Snappy mặc định)[cite: 1]
+                logging.info(f"Đang convert Batch {batch_count} sang Parquet...")
+                pq.write_table(table, local_path, compression='snappy')
 
-                    logging.info(f"Batch {batch_count} đã được convert sang Parquet tại {local_path}.")
+                logging.info(f"Batch {batch_count} đã được convert sang Parquet tại {local_path}.")
 
-                    # 5. Upload lên GCS[cite: 1]
-                    logging.info(f"Đang upload {file_name} lên GCS...")
-                    blob = bucket.blob(file_name)
-                    blob.upload_from_filename(local_path)
+                # 5. Upload lên GCS[cite: 1]
+                logging.info(f"Đang upload {file_name} lên GCS...")
+                blob = bucket.blob(file_name)
+                blob.upload_from_filename(local_path)
 
-                    logging.info(f"Batch {batch_count} đã được upload lên GCS tại {file_name}.")
+                logging.info(f"Batch {batch_count} đã được upload lên GCS tại {file_name}.")
 
-                    # Dọn dẹp file tạm và log tiến độ[cite: 1]
-                    os.remove(local_path)
-                    total_processed += len(batch)
-                    logging.info(f"Hoàn thành Batch {batch_count}. Đã xử lý: {total_processed}/{total_docs}")
-                    
-                    batch = [] # Reset batch
-                    
-                    logging.info(f"Đang chờ 5 giây trước khi tiếp tục batch tiếp theo...")
-                    time.sleep(5) # Tạm dừng 5 giây giữa các batch để tránh quá tải hệ thống và bị rate limit từ GCS
-                    break # Thử nghiệm chỉ chạy 1 batch đầu tiên để kiểm tra hệ thống, bỏ break để chạy toàn bộ dữ liệu
+                # Dọn dẹp file tạm và log tiến độ[cite: 1]
+                os.remove(local_path)
+                total_processed += len(batch)
+                logging.info(f"Hoàn thành Batch {batch_count}. Đã xử lý: {total_processed}/{total_docs}")
+                
+                batch = [] # Reset batch
+                
+                logging.info(f"Đang chờ 5 giây trước khi tiếp tục batch tiếp theo...")
+                time.sleep(5) # Tạm dừng 5 giây giữa các batch để tránh quá tải hệ thống và bị rate limit từ GCS
+                break # Thử nghiệm chỉ chạy 1 batch đầu tiên để kiểm tra hệ thống, bỏ break để chạy toàn bộ dữ liệu
 
-            logging.info("--- QUY TRÌNH HOÀN TẤT THÀNH CÔNG ---")
+        logging.info("--- QUY TRÌNH HOÀN TẤT THÀNH CÔNG ---")
 
     except Exception as e:
         logging.error(f"LỖI HỆ THỐNG: {str(e)}") # Implement error handling[cite: 1]
