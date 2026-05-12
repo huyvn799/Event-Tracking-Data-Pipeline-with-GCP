@@ -19,7 +19,9 @@ dependencies = [
     "lxml (>=6.1.0,<7.0.0)",
     "curl-cffi (>=0.15.0,<0.16.0)",
     "playwright (>=1.59.0,<2.0.0)",
-    "fake-useragent (>=2.2.0,<3.0.0)"
+    "fake-useragent (>=2.2.0,<3.0.0)",
+    "pyarrow (>=24.0.0,<25.0.0)",
+    "google-cloud-storage (>=3.10.1,<4.0.0)"
 ]
 
 
