@@ -9,6 +9,7 @@ import time
 import os
 from dotenv import load_dotenv
 from urllib.parse import quote_plus
+import json
 
 load_dotenv()
 
@@ -34,6 +35,17 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[logging.FileHandler(os.path.join(LOG_DIR, "etl_process.log")), logging.StreamHandler()]
 )
+
+def clean_document(doc):
+    """Xử lý document từ MongoDB để đảm bảo tương thích với Parquet. Chuyển đổi ObjectId và các kiểu dữ liệu phức tạp thành string hoặc JSON."""
+    for key, value in doc.items():
+        # 1. Xử lý ObjectId
+        if isinstance(value, (dict, list)):
+            doc[key] = json.dumps(value, ensure_ascii=False)
+        else:
+            doc[key] = str(value) 
+
+    return doc
 
 def export_to_gcs():
     BATCH_SIZE = 100000  # Mỗi batch xử lý 100k dòng để tránh tràn RAM
@@ -62,7 +74,7 @@ def export_to_gcs():
 
         for i, doc in enumerate(cursor):
             # Xử lý ObjectId của MongoDB vì Parquet không đọc được trực tiếp
-            doc['_id'] = str(doc['_id'])
+            doc = clean_document(doc)
             batch.append(doc)
 
             if len(batch) == BATCH_SIZE or i == total_docs - 1:
