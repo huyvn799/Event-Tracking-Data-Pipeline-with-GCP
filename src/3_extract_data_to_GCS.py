@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 from urllib.parse import quote_plus
 import json
+import random
 
 load_dotenv()
 
@@ -111,10 +112,9 @@ def export_to_gcs():
                 
                 batch = [] # Reset batch
                 
-                logging.info(f"Đang chờ 5 giây trước khi tiếp tục batch tiếp theo...")
-                time.sleep(5) # Tạm dừng 5 giây giữa các batch để tránh quá tải hệ thống và bị rate limit từ GCS
-                break # Thử nghiệm chỉ chạy 1 batch đầu tiên để kiểm tra hệ thống, bỏ break để chạy toàn bộ dữ liệu
-
+                logging.info(f"Đang chờ từ 2-5 giây trước khi tiếp tục batch tiếp theo...")
+                time.sleep(random.randint(2, 5)) # Tạm dừng 5 giây giữa các batch để tránh quá tải hệ thống và bị rate limit từ GCS
+                
         logging.info("--- QUY TRÌNH HOÀN TẤT THÀNH CÔNG ---")
 
     except Exception as e:
