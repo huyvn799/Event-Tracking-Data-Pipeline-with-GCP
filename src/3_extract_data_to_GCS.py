@@ -162,9 +162,9 @@ def export_file_to_gcs(local_file_path,bucket, gcs_folder):
     try:
         df = pd.read_csv(local_file_path)
         df = df.drop(columns=['Mapped'], errors='ignore')  # Loại bỏ cột 'Mapped' nếu tồn tại
-        new_csv_file_path = f"{OUTPUT_TEMP_DIR}/cleaned_ip_location.csv"
+        new_csv_file_path = f"{OUTPUT_TEMP_DIR}/cleaned_ip_locations.csv"
         df.to_csv(new_csv_file_path, index=False)
-        file_name = f"{gcs_folder}/ip_location.csv"
+        file_name = f"{gcs_folder}/ip_locations.csv"
         blob = bucket.blob(file_name)
         blob.upload_from_filename(new_csv_file_path)
         logging.info(f"File ip_location.csv đã được upload lên Bucket {bucket.name} tại {file_name}.")
@@ -199,10 +199,10 @@ def export_to_gcs():
     bucket = storage_client.bucket(GCS_BUCKET_NAME)
 
     # Thực hiện export raw data 41m records lên GCS
-    export_db_raw_data_to_gcs(bucket, BUCKET_RAW_DATA_DIR)
+    # export_db_raw_data_to_gcs(bucket, BUCKET_RAW_DATA_DIR)
     
     # Thực hiện export ip location csv file lên GCS
-    ip_location_path = f"{OUTPUT_DIR}/ip_location.csv"
+    ip_location_path = f"{OUTPUT_DIR}/ip_locations.csv"
     export_file_to_gcs(ip_location_path, bucket, BUCKET_IP_LOCATION_DIR)
 
     
