@@ -22,7 +22,6 @@ DB_NAME = os.getenv("MONGO_DB_NAME")
 COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
-
 BUCKET_RAW_DATA_DIR = "raw_data"
 BUCKET_IP_LOCATION_DIR = "ip_location"
 BUCKET_PRODUCTS_DIR = "products"
@@ -41,6 +40,43 @@ logging.basicConfig(
     handlers=[logging.FileHandler(os.path.join(LOG_DIR, "etl_process.log")), logging.StreamHandler()]
 )
 
+def extract_data_field_from_jsonl(input_folder, output_folder):
+    # Liệt kê tất cả file jsonl trong thư mục
+    files = [f for f in os.listdir(input_folder) if f.endswith('.jsonl')]
+    
+    for file_name in files:
+        input_path = os.path.join(input_folder, file_name)
+        extracted_batch = []
+        
+        print(f"Đang xử lý file: {file_name}")
+        
+        with open(input_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    # Parse dòng hiện tại thành dictionary
+                    full_record = json.loads(line)
+                    
+                    # Chỉ lấy giá trị của key 'data'
+                    # Sử dụng .get('data') để tránh lỗi nếu dòng đó thiếu key này
+                    data_content = full_record.get('data')
+                    
+                    if data_content is not None:
+                        # Nếu data_content là một dict, ta có thể flatten nó sau này
+                        extracted_batch.append(data_content)
+                        
+                except json.JSONDecodeError:
+                    print(f"Bỏ qua dòng lỗi định dạng tại file {file_name}")
+
+        # Sau khi trích xuất xong 1 file, chuyển sang DataFrame để chuẩn bị cho Step 1 & 2
+        if extracted_batch:
+            df = pd.DataFrame(extracted_batch)
+            
+            # Lưu tạm thành Parquet hoặc xử lý tiếp upload GCS
+            output_file = file_name.replace('.jsonl', '.parquet')
+            df.to_parquet(os.path.join(output_folder, output_file))
+            print(f"Đã trích xuất xong {len(extracted_batch)} bản ghi từ {file_name}")
+
+
 def clean_document(doc):
     """Xử lý document từ MongoDB để đảm bảo tương thích với Parquet. Chuyển đổi ObjectId và các kiểu dữ liệu phức tạp thành string hoặc JSON."""
     for key, value in doc.items():
@@ -52,7 +88,7 @@ def clean_document(doc):
 
     return doc
 
-def export_raw_data_to_gcs(bucket, location_folder):
+def export_db_raw_data_to_gcs(bucket, gcs_folder):
     BATCH_SIZE = 100000  # Mỗi batch xử lý 100k dòng để tránh tràn RAM
     
     try:
@@ -89,7 +125,7 @@ def export_raw_data_to_gcs(bucket, location_folder):
 
                 # Tạo tên file theo ngày và số batch để dễ quản lý
                 current_date = datetime.now().strftime("%Y-%m-%d")
-                file_name = f"{location_folder}/{current_date}/batch_{batch_count}.parquet"
+                file_name = f"{gcs_folder}/{current_date}/batch_{batch_count}.parquet"
                 local_path = f"{OUTPUT_TEMP_DIR}/temp_batch_{batch_count}.parquet"
 
                 # 4. Convert sang Parquet (Nén Snappy mặc định)[cite: 1]
@@ -122,20 +158,40 @@ def export_raw_data_to_gcs(bucket, location_folder):
     finally:
         client.close()
 
-def export_ip_location_to_gcs(bucket, location_folder):
+def export_file_to_gcs(local_file_path,bucket, gcs_folder):
     try:
-        local_path = f"{OUTPUT_DIR}/ip_location.csv"
-        df = pd.read_csv("data/ip_location.csv")
-        df = df.drop(columns=['Mapped'])
+        df = pd.read_csv(local_file_path)
+        df = df.drop(columns=['Mapped'], errors='ignore')  # Loại bỏ cột 'Mapped' nếu tồn tại
         new_csv_file_path = f"{OUTPUT_TEMP_DIR}/cleaned_ip_location.csv"
         df.to_csv(new_csv_file_path, index=False)
-        file_name = f"{location_folder}/ip_location.csv"
+        file_name = f"{gcs_folder}/ip_location.csv"
         blob = bucket.blob(file_name)
         blob.upload_from_filename(new_csv_file_path)
-        logging.info(f"File ip_location.csv đã được upload lên GCS tại {file_name}.")
+        logging.info(f"File ip_location.csv đã được upload lên Bucket {bucket.name} tại {file_name}.")
         os.remove(new_csv_file_path)
     except Exception as e:
         logging.error(f"LỖI KHI UPLOAD IP LOCATION: {str(e)}")
+
+def export_folder_to_gcs(local_folder_path, bucket, gcs_folder):
+    try:
+        # Liệt kê tất cả các file trong thư mục local
+        files = [file_name for file_name in os.listdir(local_folder_path) if file_name.endswith('.jsonl') and os.path.isfile(os.path.join(local_folder_path, file_name))]
+    
+        logging.info(f"Bắt đầu tải {len(files)} tệp lên bucket {bucket.name}...")
+
+        for file_name in files:
+            local_file = os.path.join(local_folder_path, file_name)
+            # Đường dẫn trên GCS (blob name)
+            blob_path = os.path.join(gcs_folder, file_name).strip("/")
+            
+            blob = bucket.blob(blob_path)
+            blob.upload_from_filename(local_file)
+            
+            logging.info(f"Đã tải lên: {os.path.join(gcs_folder, file_name)}")
+        
+        logging.info(f"Hoàn thành tải {len(files)} tệp lên bucket {bucket.name} tại thư mục {gcs_folder}.")
+    except Exception as e:
+        logging.error(f"LỖI KHI UPLOAD PRODUCTS: {str(e)}")
 
 def export_to_gcs():
     # Kết nối GCS
@@ -143,13 +199,18 @@ def export_to_gcs():
     bucket = storage_client.bucket(GCS_BUCKET_NAME)
 
     # Thực hiện export raw data 41m records lên GCS
-    # export_raw_data_to_gcs(bucket, BUCKET_RAW_DATA_DIR)
+    export_db_raw_data_to_gcs(bucket, BUCKET_RAW_DATA_DIR)
     
     # Thực hiện export ip location csv file lên GCS
-    export_ip_location_to_gcs(bucket, BUCKET_IP_LOCATION_DIR)
+    ip_location_path = f"{OUTPUT_DIR}/ip_location.csv"
+    export_file_to_gcs(ip_location_path, bucket, BUCKET_IP_LOCATION_DIR)
 
+    
+    # Cách sử dụng
+    # extract_data_field_from_jsonl(f"{OUTPUT_DIR}/crawl_data", f"{OUTPUT_DIR}/extracted_data_parquet")
     # Thực hiện export products jsonl files lên GCS
-    # export_products_to_gcs(bucket, BUCKET_PRODUCTS_DIR)
+    products_folder_path = f"{OUTPUT_DIR}/extracted_data_parquet"
+    # export_folder_to_gcs(products_folder_path, bucket, BUCKET_PRODUCTS_DIR)
 
 
 if __name__ == "__main__":
