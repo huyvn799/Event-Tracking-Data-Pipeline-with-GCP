@@ -54,6 +54,7 @@ def clean_document(doc):
 def extract_data_field_from_jsonl(input_folder, output_folder):
 
     os.makedirs(output_folder, exist_ok=True)
+    os.makedirs(f"{OUTPUT_DIR}/extracted_data_jsonl", exist_ok=True)
 
     # Liệt kê tất cả file jsonl trong thư mục
     files = [f for f in os.listdir(input_folder) if f.endswith('.jsonl')]
@@ -90,7 +91,7 @@ def extract_data_field_from_jsonl(input_folder, output_folder):
             # Lưu tạm thành Parquet hoặc xử lý tiếp upload GCS
             output_file = file_name.replace('.jsonl', '.parquet')
             df.to_parquet(os.path.join(output_folder, output_file))
-            df.to_json(os.path.join(f"{OUTPUT_TEMP_DIR}/jsonl_files", file_name), orient="records", lines=True)
+            df.to_json(os.path.join(f"{OUTPUT_DIR}/extracted_data_jsonl", file_name), orient="records", lines=True)
             print(f"Đã trích xuất xong {len(extracted_batch)} bản ghi từ {file_name}")
 
 def export_db_raw_data_to_gcs(bucket, gcs_folder):
