@@ -40,6 +40,17 @@ logging.basicConfig(
     handlers=[logging.FileHandler(os.path.join(LOG_DIR, "etl_process.log")), logging.StreamHandler()]
 )
 
+def clean_document(doc):
+    """Xử lý document từ MongoDB để đảm bảo tương thích với Parquet. Chuyển đổi ObjectId và các kiểu dữ liệu phức tạp thành string hoặc JSON."""
+    for key, value in doc.items():
+        # 1. Xử lý ObjectId
+        if isinstance(value, (dict, list)):
+            doc[key] = json.dumps(value, ensure_ascii=False)
+        else:
+            doc[key] = str(value) 
+
+    return doc
+
 def extract_data_field_from_jsonl(input_folder, output_folder):
     # Liệt kê tất cả file jsonl trong thư mục
     files = [f for f in os.listdir(input_folder) if f.endswith('.jsonl')]
@@ -60,9 +71,11 @@ def extract_data_field_from_jsonl(input_folder, output_folder):
                     # Sử dụng .get('data') để tránh lỗi nếu dòng đó thiếu key này
                     data_content = full_record.get('data')
                     
-                    if data_content is not None:
+                    cleaned_content = clean_document(data_content)
+
+                    if cleaned_content is not None:
                         # Nếu data_content là một dict, ta có thể flatten nó sau này
-                        extracted_batch.append(data_content)
+                        extracted_batch.append(cleaned_content)
                         
                 except json.JSONDecodeError:
                     print(f"Bỏ qua dòng lỗi định dạng tại file {file_name}")
@@ -74,19 +87,8 @@ def extract_data_field_from_jsonl(input_folder, output_folder):
             # Lưu tạm thành Parquet hoặc xử lý tiếp upload GCS
             output_file = file_name.replace('.jsonl', '.parquet')
             df.to_parquet(os.path.join(output_folder, output_file))
+            df.to_json(os.path.join(f"{OUTPUT_TEMP_DIR}/jsonl_files", orient="records", lines=True))
             print(f"Đã trích xuất xong {len(extracted_batch)} bản ghi từ {file_name}")
-
-
-def clean_document(doc):
-    """Xử lý document từ MongoDB để đảm bảo tương thích với Parquet. Chuyển đổi ObjectId và các kiểu dữ liệu phức tạp thành string hoặc JSON."""
-    for key, value in doc.items():
-        # 1. Xử lý ObjectId
-        if isinstance(value, (dict, list)):
-            doc[key] = json.dumps(value, ensure_ascii=False)
-        else:
-            doc[key] = str(value) 
-
-    return doc
 
 def export_db_raw_data_to_gcs(bucket, gcs_folder):
     BATCH_SIZE = 100000  # Mỗi batch xử lý 100k dòng để tránh tràn RAM
