@@ -52,20 +52,6 @@ def clean_document(doc):
 
     return doc
 
-def export_to_gcs():
-    # Kết nối GCS
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(GCS_BUCKET_NAME)
-
-    # Thực hiện export raw data 41m records lên GCS
-    # export_raw_data_to_gcs(bucket, BUCKET_RAW_DATA_DIR)
-    
-    # Thực hiện export ip location csv file lên GCS
-    export_ip_location_to_gcs(bucket, BUCKET_IP_LOCATION_DIR)
-
-    # Thực hiện export products jsonl files lên GCS
-    # export_products_to_gcs(bucket, BUCKET_PRODUCTS_DIR)
-
 def export_raw_data_to_gcs(bucket, location_folder):
     BATCH_SIZE = 100000  # Mỗi batch xử lý 100k dòng để tránh tràn RAM
     
@@ -150,6 +136,21 @@ def export_ip_location_to_gcs(bucket, location_folder):
         os.remove(new_csv_file_path)
     except Exception as e:
         logging.error(f"LỖI KHI UPLOAD IP LOCATION: {str(e)}")
+
+def export_to_gcs():
+    # Kết nối GCS
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(GCS_BUCKET_NAME)
+
+    # Thực hiện export raw data 41m records lên GCS
+    # export_raw_data_to_gcs(bucket, BUCKET_RAW_DATA_DIR)
+    
+    # Thực hiện export ip location csv file lên GCS
+    export_ip_location_to_gcs(bucket, BUCKET_IP_LOCATION_DIR)
+
+    # Thực hiện export products jsonl files lên GCS
+    # export_products_to_gcs(bucket, BUCKET_PRODUCTS_DIR)
+
 
 if __name__ == "__main__":
     export_to_gcs()
