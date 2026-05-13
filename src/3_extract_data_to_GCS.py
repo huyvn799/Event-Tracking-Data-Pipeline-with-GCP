@@ -218,7 +218,7 @@ def export_to_gcs():
     products_folder_path = f"{OUTPUT_DIR}/extracted_data_parquet"
     products_jsonl_path = f"{OUTPUT_DIR}/extracted_data_jsonl"
     export_folder_to_gcs(products_folder_path, bucket, BUCKET_PRODUCTS_DIR)
-    export_folder_to_gcs(products_folder_path, bucket, "products_jsonl")
+    export_folder_to_gcs(products_jsonl_path, bucket, "products_jsonl")
 
 
 if __name__ == "__main__":
