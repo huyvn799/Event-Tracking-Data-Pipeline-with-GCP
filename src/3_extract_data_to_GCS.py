@@ -52,6 +52,9 @@ def clean_document(doc):
     return doc
 
 def extract_data_field_from_jsonl(input_folder, output_folder):
+
+    os.makedirs(output_folder, exist_ok=True)
+
     # Liệt kê tất cả file jsonl trong thư mục
     files = [f for f in os.listdir(input_folder) if f.endswith('.jsonl')]
     
