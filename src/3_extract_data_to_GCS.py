@@ -24,7 +24,7 @@ GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
 BUCKET_RAW_DATA_DIR = "raw_data"
 BUCKET_IP_LOCATION_DIR = "ip_location"
-BUCKET_PRODUCTS_DIR = "products"
+BUCKET_PRODUCTS_DIR = "products_parquet"
 OUTPUT_DIR = "output"
 OUTPUT_TEMP_DIR = "output/temp"
 LOG_DIR = "output/logs"
@@ -91,7 +91,7 @@ def extract_data_field_from_jsonl(input_folder, output_folder):
             # Lưu tạm thành Parquet hoặc xử lý tiếp upload GCS
             output_file = file_name.replace('.jsonl', '.parquet')
             df.to_parquet(os.path.join(output_folder, output_file))
-            df.to_json(os.path.join(f"{OUTPUT_DIR}/extracted_data_jsonl", file_name), orient="records", lines=True)
+            df.to_json(os.path.join(f"{OUTPUT_DIR}/extracted_data_jsonl", file_name), force_ascii=False, orient="records", lines=True)
             print(f"Đã trích xuất xong {len(extracted_batch)} bản ghi từ {file_name}")
 
 def export_db_raw_data_to_gcs(bucket, gcs_folder):
@@ -216,7 +216,9 @@ def export_to_gcs():
     extract_data_field_from_jsonl(f"{OUTPUT_DIR}/crawl_data", f"{OUTPUT_DIR}/extracted_data_parquet")
     # Thực hiện export products jsonl files lên GCS
     products_folder_path = f"{OUTPUT_DIR}/extracted_data_parquet"
-    # export_folder_to_gcs(products_folder_path, bucket, BUCKET_PRODUCTS_DIR)
+    products_jsonl_path = f"{OUTPUT_DIR}/extracted_data_jsonl"
+    export_folder_to_gcs(products_folder_path, bucket, BUCKET_PRODUCTS_DIR)
+    export_folder_to_gcs(products_folder_path, bucket, "products_jsonl")
 
 
 if __name__ == "__main__":
