@@ -203,11 +203,11 @@ def export_to_gcs():
     
     # Thực hiện export ip location csv file lên GCS
     ip_location_path = f"{OUTPUT_DIR}/ip_locations.csv"
-    export_file_to_gcs(ip_location_path, bucket, BUCKET_IP_LOCATION_DIR)
+    # export_file_to_gcs(ip_location_path, bucket, BUCKET_IP_LOCATION_DIR)
 
     
     # Cách sử dụng
-    # extract_data_field_from_jsonl(f"{OUTPUT_DIR}/crawl_data", f"{OUTPUT_DIR}/extracted_data_parquet")
+    extract_data_field_from_jsonl(f"{OUTPUT_DIR}/crawl_data", f"{OUTPUT_DIR}/extracted_data_parquet")
     # Thực hiện export products jsonl files lên GCS
     products_folder_path = f"{OUTPUT_DIR}/extracted_data_parquet"
     # export_folder_to_gcs(products_folder_path, bucket, BUCKET_PRODUCTS_DIR)
