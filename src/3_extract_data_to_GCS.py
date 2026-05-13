@@ -24,10 +24,14 @@ GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
 
 BUCKET_RAW_DATA_DIR = "raw_data"
-OUTPUT_DIR = "output/temp"
+BUCKET_IP_LOCATION_DIR = "ip_location"
+BUCKET_PRODUCTS_DIR = "products"
+OUTPUT_DIR = "output"
+OUTPUT_TEMP_DIR = "output/temp"
 LOG_DIR = "output/logs"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(OUTPUT_TEMP_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # 1. Cấu hình Logging chi tiết
@@ -49,6 +53,20 @@ def clean_document(doc):
     return doc
 
 def export_to_gcs():
+    # Kết nối GCS
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(GCS_BUCKET_NAME)
+
+    # Thực hiện export raw data 41m records lên GCS
+    # export_raw_data_to_gcs(bucket, BUCKET_RAW_DATA_DIR)
+    
+    # Thực hiện export ip location csv file lên GCS
+    export_ip_location_to_gcs(bucket, BUCKET_IP_LOCATION_DIR)
+
+    # Thực hiện export products jsonl files lên GCS
+    # export_products_to_gcs(bucket, BUCKET_PRODUCTS_DIR)
+
+def export_raw_data_to_gcs(bucket, location_folder):
     BATCH_SIZE = 100000  # Mỗi batch xử lý 100k dòng để tránh tràn RAM
     
     try:
@@ -62,10 +80,6 @@ def export_to_gcs():
         collection = db[COLLECTION_NAME]
         total_docs = collection.estimated_document_count()
         logging.info(f"Bắt đầu Extract. Tổng cộng: {total_docs} dòng.")
-
-        # Kết nối GCS
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(GCS_BUCKET_NAME)
 
         # 3. Extract dữ liệu theo Batch
         cursor = collection.find({}, no_cursor_timeout=True)
@@ -89,8 +103,8 @@ def export_to_gcs():
 
                 # Tạo tên file theo ngày và số batch để dễ quản lý
                 current_date = datetime.now().strftime("%Y-%m-%d")
-                file_name = f"{BUCKET_RAW_DATA_DIR}/{current_date}/batch_{batch_count}.parquet"
-                local_path = f"{OUTPUT_DIR}/temp_batch_{batch_count}.parquet"
+                file_name = f"{location_folder}/{current_date}/batch_{batch_count}.parquet"
+                local_path = f"{OUTPUT_TEMP_DIR}/temp_batch_{batch_count}.parquet"
 
                 # 4. Convert sang Parquet (Nén Snappy mặc định)[cite: 1]
                 logging.info(f"Đang convert Batch {batch_count} sang Parquet...")
@@ -115,12 +129,27 @@ def export_to_gcs():
                 logging.info(f"Đang chờ từ 2-5 giây trước khi tiếp tục batch tiếp theo...")
                 time.sleep(random.randint(2, 5)) # Tạm dừng 5 giây giữa các batch để tránh quá tải hệ thống và bị rate limit từ GCS
                 
-        logging.info("--- QUY TRÌNH HOÀN TẤT THÀNH CÔNG ---")
+        logging.info("--- QUY TRÌNH CHUYỂN RAW DATA LÊN GCSHOÀN TẤT ---")
 
     except Exception as e:
         logging.error(f"LỖI HỆ THỐNG: {str(e)}") # Implement error handling[cite: 1]
     finally:
         client.close()
+
+def export_ip_location_to_gcs(bucket, location_folder):
+    try:
+        local_path = f"{OUTPUT_DIR}/ip_location.csv"
+        df = pd.read_csv("data/ip_location.csv")
+        df = df.drop(columns=['Mapped'])
+        new_csv_file_path = f"{OUTPUT_TEMP_DIR}/cleaned_ip_location.csv"
+        df.to_csv(new_csv_file_path, index=False)
+        file_name = f"{location_folder}/ip_location.csv"
+        blob = bucket.blob(file_name)
+        blob.upload_from_filename(new_csv_file_path)
+        logging.info(f"File ip_location.csv đã được upload lên GCS tại {file_name}.")
+        os.remove(new_csv_file_path)
+    except Exception as e:
+        logging.error(f"LỖI KHI UPLOAD IP LOCATION: {str(e)}")
 
 if __name__ == "__main__":
     export_to_gcs()
