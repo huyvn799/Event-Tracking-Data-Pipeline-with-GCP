@@ -16,7 +16,7 @@ BRONZE_IP_LOCATION_TABLE_ID = os.getenv("BRONZE_IP_LOCATION_TABLE_ID")
 
 def import_csv_from_gcs_to_bigquery():
 
-    GCS_URI = f"gs://{GCS_BUCKET_NAME}/{GCS_IP_LOCATION_DIR}/ip_locaitons.csv"
+    GCS_URI = f"gs://{GCS_BUCKET_NAME}/{GCS_IP_LOCATION_DIR}/ip_locations.csv"
 
     # Khởi tạo BigQuery Client
     client = bigquery.Client(project=PROJECT_ID)
@@ -117,7 +117,7 @@ def create_ip_location_table_with_schema():
             fields=[
                 bigquery.SchemaField("sku", "STRING", mode="NULLABLE"),
                 bigquery.SchemaField("qty", "INTEGER", mode="NULLABLE"),
-                bigquery.SchemaField("price", "NUMERIC", mode="NULLABLE") # Tiền trong giỏ hàng cũng dùng NUMERIC
+                bigquery.SchemaField("price", "NUMERIC", mode="NULLABLE") 
             ]
         )
     ]
