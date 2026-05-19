@@ -78,42 +78,6 @@ def get_data_dictionary_from_db():
     except Exception as e:
         logging.info(f"Lỗi ở quá trình lấy data dictionary: {e}")
 
-def create_schema_on_bigquery():
-    # Khởi tạo BigQuery Client
-    client = bigquery.Client()
-
-    # Định nghĩa ID cho bảng
-    table_id = "your_project.glamira_dataset.products_summary"
-
-    # Tự động hóa việc định nghĩa Schema bằng Code
-    schema = [
-        bigquery.SchemaField("product_id", "INTEGER", mode="REQUIRED"),
-        bigquery.SchemaField("product_name", "STRING", mode="NULLABLE"),
-        
-        # Xử lý trường lồng nhau (Nested Field tương tự như MongoDB)
-        bigquery.SchemaField("attributes", "RECORD", mode="NULLABLE", fields=[
-            bigquery.SchemaField("material", "STRING", mode="NULLABLE"),
-            bigquery.SchemaField("color", "STRING", mode="NULLABLE"),
-        ]),
-        
-        # Xử lý mảng (Array tương tự như List của MongoDB)
-        bigquery.SchemaField("variants", "RECORD", mode="REPEATED", fields=[
-            bigquery.SchemaField("sku", "STRING", mode="REQUIRED"),
-            bigquery.SchemaField("price", "FLOAT", mode="NULLABLE"),
-        ]),
-        
-        bigquery.SchemaField("created_at", "TIMESTAMP", mode="NULLABLE"),
-    ]
-
-    # Tạo đối tượng bảng và thực thi lệnh trên BigQuery
-    table = bigquery.Table(table_id, schema=schema)
-
-    try:
-        table = client.create_table(table)  # Gửi request tạo bảng lên cloud
-        print(f"[SUCCESS] Đã tạo bảng {table.project}.{table.dataset_id}.{table.table_id} tự động bằng Python!")
-    except Exception as e:
-        print(f"[ERROR] Tạo bảng thất bại: {e}")
-
 def stringify_document(doc):
     """Xử lý document từ MongoDB để đảm bảo tương thích với Parquet. Chuyển đổi ObjectId và các kiểu dữ liệu phức tạp thành string hoặc JSON."""
     for key, value in doc.items():
@@ -268,8 +232,7 @@ def export_raw_data_to_jsonl(micro_batch_size = MICRO_BATCH_SIZE, records_per_fi
                 
                 # Sử dụng mode "a" (Append) để ghi nối tiếp cực kỳ an toàn
                 with open(file_path, "a", encoding="utf-8") as f:
-                    for doc in ram_buffer:
-                        f.write(json_str + "\n")
+                    f.write("\n".join(ram_buffer) + "\n")
                     
                 ram_buffer = [] # Xóa sạch bộ đệm RAM để giải phóng bộ nhớ ngay lập tức
 
