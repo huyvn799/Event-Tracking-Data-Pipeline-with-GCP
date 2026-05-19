@@ -50,7 +50,7 @@ def import_csv_from_gcs_to_bigquery():
         bigquery.SchemaField("ip", "STRING", mode="REQUIRED"),
         bigquery.SchemaField("country", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("region", "STRING", mode="NULLABLE"),
-        bigquery.SchemaField("city", "NUMERIC", mode="NULLABLE")
+        bigquery.SchemaField("city", "STRING", mode="NULLABLE")
     ]
     
     # Tắt tính năng tự động nhận diện vì ta đã cung cấp schema tường minh
