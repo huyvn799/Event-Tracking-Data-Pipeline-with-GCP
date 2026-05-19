@@ -209,7 +209,7 @@ def export_raw_data_by_parquet_to_gcs(bucket, gcs_folder):
         cursor.close()
         client.close()
 
-def export_raw_data_by_jsonl_to_gcs(bucket, gcs_folder, records_per_file = REC):
+def export_raw_data_by_jsonl_to_gcs(bucket, gcs_folder, records_per_file = RECORDS_PER_FILE):
     BATCH_SIZE = 100000  # Mỗi batch xử lý 100k dòng để tránh tràn RAM
     
     try:
