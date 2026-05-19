@@ -113,7 +113,7 @@ def create_product_table_from_gcs():
         bigquery.SchemaField("product_type", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("product_type_value", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("category", "STRING", mode="NULLABLE"),
-        bigquery.SchemaField("citcategory_namey", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("category_name", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("store_code", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("platinum_palladium_info_in_alloy", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("bracelet_without_chain", "STRING", mode="NULLABLE"),
