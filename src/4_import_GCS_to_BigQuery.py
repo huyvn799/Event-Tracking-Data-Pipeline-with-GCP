@@ -8,13 +8,15 @@ load_dotenv()
 
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 GCS_IP_LOCATION_DIR = "bronze/ip_location"
+GCS_PRODUCT_DIR = "bronze/products_jsonl"
+
 PROJECT_ID = os.getenv("PROJECT_ID")
 BRONZE_DATASET_ID = os.getenv("BRONZE_DATASET_ID")
 BRONZE_SUMMARY_TABLE_ID = os.getenv("BRONZE_SUMMARY_TABLE_ID")
 BRONZE_PRODUCT_TABLE_ID = os.getenv("BRONZE_PRODUCT_TABLE_ID")
 BRONZE_IP_LOCATION_TABLE_ID = os.getenv("BRONZE_IP_LOCATION_TABLE_ID")
 
-def import_csv_from_gcs_to_bigquery():
+def create_ip_location_table_from_gcs():
 
     GCS_URI = f"gs://{GCS_BUCKET_NAME}/{GCS_IP_LOCATION_DIR}/ip_locations.csv"
 
@@ -62,8 +64,8 @@ def import_csv_from_gcs_to_bigquery():
     print(f"[*] Đang nạp CSV từ GCS với Schema thủ công nghiêm ngặt...")
     try:
         load_job = client.load_table_from_uri(
-            GCS_URI, 
-            table_ref, 
+            GCS_URI,
+            table_ref,
             job_config=job_config
         )
         
@@ -71,6 +73,66 @@ def import_csv_from_gcs_to_bigquery():
         
         destination_table = client.get_table(table_ref)
         print(f"[SUCCESS] Bảng `{BRONZE_IP_LOCATION_TABLE_ID}` đã áp dụng Schema thành công!")
+        print(f"Số lượng dòng hiện tại: {destination_table.num_rows}")
+        
+    except Exception as e:
+        print(f"[CRITICAL ERROR] Quá trình nạp dữ liệu thất bại: {e}")
+
+def create_product_table_from_gcs():
+    GCS_FOLDER_URI = f"gs://{GCS_BUCKET_NAME}/{GCS_PRODUCT_DIR}/*.jsonl"
+
+    client = bigquery.Client(project=PROJECT_ID)
+    table_ref = f"{PROJECT_ID}.{BRONZE_DATASET_ID}.{BRONZE_PRODUCT_TABLE_ID}"
+
+    job_config = bigquery.LoadJobConfig()
+    job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
+    job_config.encoding = "UTF-8"
+    
+    job_config.write_disposition = bigquery.WriteDisposition.WRITE_APPEND
+    job_config.autodetect = False
+
+    job_config.schema = [
+        bigquery.SchemaField("product_id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("name", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("sku", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("attribute_set_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("attribute_set", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("type_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("price", "NUMERIC", mode="NULLABLE"),
+        bigquery.SchemaField("min_price", "NUMERIC", mode="NULLABLE"),
+        bigquery.SchemaField("max_price", "NUMERIC", mode="NULLABLE"),
+        bigquery.SchemaField("min_price_format", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("max_price_format", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("gold_weight", "NUMERIC", mode="NULLABLE"),
+        bigquery.SchemaField("none_metal_weight", "NUMERIC", mode="NULLABLE"),
+        bigquery.SchemaField("fixed_silver_weight", "NUMERIC", mode="NULLABLE"),
+        bigquery.SchemaField("material_design", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("qty", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("collection", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("collection_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("product_type", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("product_type_value", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("category", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("citcategory_namey", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("store_code", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("platinum_palladium_info_in_alloy", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("bracelet_without_chain", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("show_popup_quantity_eternity", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("gender", "STRING", mode="NULLABLE")
+    ]
+    
+    print(f"[*] Đang yêu cầu BigQuery nạp toàn bộ file JSONL từ folder: {GCS_FOLDER_URI}...")
+    try:
+        load_job = client.load_table_from_uri(
+            GCS_FOLDER_URI,
+            table_ref,
+            job_config=job_config
+        )
+        
+        load_job.result() # Chờ tiến trình Cloud hoàn thành
+        
+        destination_table = client.get_table(table_ref)
+        print(f"[SUCCESS] Bảng `{BRONZE_PRODUCT_TABLE_ID}` đã áp dụng Schema thành công!")
         print(f"Số lượng dòng hiện tại: {destination_table.num_rows}")
         
     except Exception as e:
@@ -146,4 +208,8 @@ def create_ip_location_table_with_schema():
         print(f"[CRITICAL ERROR] Quá trình tạo bảng thất bại: {e}")
 
 if __name__ == "__main__":
-    import_csv_from_gcs_to_bigquery()
+    # 1. Tạo bảng ip_locations trên BigQuery từ file CSV trong GCS
+    # create_ip_location_table_from_gcs()
+
+    # 1. Tạo bảng products trên BigQuery từ nhiều file JSONL trong GCS
+    create_product_table_from_gcs()
