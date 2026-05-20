@@ -209,7 +209,7 @@ def standardize_document(doc):
                     opt_cart_data = product["option"]
                     
                     # TÌNH HUỐNG 1: option là None hoặc một chuỗi ký tự (toàn bộ là chuỗi rỗng "") -> []
-                    if opt_data is None or isinstance(opt_cart_data, str):
+                    if opt_cart_data is None or isinstance(opt_cart_data, str):
                         product["option"] = []
                     # TÌNH HUỐNG 3: option là một Object đơn lẻ (dict) thay vì mảng
                     elif isinstance(opt_cart_data, dict):
