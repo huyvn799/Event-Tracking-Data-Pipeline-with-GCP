@@ -9,6 +9,7 @@ load_dotenv()
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 GCS_IP_LOCATION_DIR = "bronze/ip_location"
 GCS_PRODUCT_DIR = "bronze/products_jsonl"
+GCS_SUMMARY_DIR = "bronze/summary_test"
 
 PROJECT_ID = os.getenv("PROJECT_ID")
 BRONZE_DATASET_ID = os.getenv("BRONZE_DATASET_ID")
@@ -138,78 +139,119 @@ def create_product_table_from_gcs():
     except Exception as e:
         print(f"[CRITICAL ERROR] Quá trình nạp dữ liệu thất bại: {e}")
 
-def create_ip_location_table_with_schema():
-    # Khởi tạo BigQuery Client (Tự động ăn theo Google Application Credentials trên VM)
+def create_summary_table_from_gcs():
+    GCS_FOLDER_URI = f"{GCS_BUCKET_NAME}/{GCS_SUMMARY_DIR}/*.jsonl"
+
     client = bigquery.Client(project=PROJECT_ID)
-    
-    # Đường dẫn định danh đầy đủ của bảng trong BigQuery
-    table_ref = f"{PROJECT_ID}.{BRONZE_DATASET_ID}.{BRONZE_IP_LOCATION_TABLE_ID}"
-    
-    # =====================================================================
-    # 2. ĐỊNH NGHĨA KHUÔN MẪU SCHEMA (SCHEMA DEFINITION)
-    # =====================================================================
-    schema = [
-        # Các trường phẳng thông thường (Flat Fields)
-        bigquery.SchemaField("_id", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("product_id", "INTEGER", mode="REQUIRED"),
-        bigquery.SchemaField("product_name", "STRING", mode="NULLABLE"),
-        
-        # Trường giá tiền (Price) - Bắt buộc dùng NUMERIC để đảm bảo độ chính xác tài chính
-        bigquery.SchemaField("price", "NUMERIC", mode="NULLABLE"),
-        bigquery.SchemaField("discount", "INTEGER", mode="NULLABLE"),
-        bigquery.SchemaField("is_active", "BOOLEAN", mode="NULLABLE"),
-        
-        # TRƯỜNG HỢP 1: Trường 'option' đa hình (Sau khi đã được Python đồng nhất về mảng)
-        # Type là RECORD (Object) và Mode là REPEATED (Mảng) -> Array of Objects
+
+    table_ref = f"{PROJECT_ID}.{BRONZE_DATASET_ID}.{BRONZE_SUMMARY_TABLE_ID}"
+
+    job_config = bigquery.LoadJobConfig()
+    job_config.source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
+    job_config.write_disposition = bigquery.WriteDisposition.WRITE_APPEND
+    job_config.autodetect = False
+
+    job_config.schema = [
+        bigquery.SchemaField("_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("time_stamp", "INTEGER", mode="NULLABLE"),
+        bigquery.SchemaField("ip", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("user_agent", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("resolution", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("user_id_db", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("device_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("api_version", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("store_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("local_time", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("show_recommendation", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("current_url", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("referrer_url", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("email_address", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("recommendation", "BOOLEAN", mode="NULLABLE"),
+        bigquery.SchemaField("utm_source", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("utm_medium", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("collection", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("key_search", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("viewing_product_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("recommendation_product_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("recommendation_clicked_position", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("recommendation_product_position", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("price", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("currency", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("is_paypal", "BOOLEAN", mode="NULLABLE"),
         bigquery.SchemaField(
-            "option", 
-            "RECORD", 
+            "option",
+            "RECORD",
             mode="REPEATED",
             fields=[
-                bigquery.SchemaField("name", "STRING", mode="NULLABLE"),
-                bigquery.SchemaField("value", "STRING", mode="NULLABLE")
+                bigquery.SchemaField("alloy", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("diamond", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("shapediamond", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("stone", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("pearlcolor", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("finish", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("price", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("finish", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("category id", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("Kollektion", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("kollektion_id", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("option_label", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("option_id", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("value_label", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("value_id", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("quality_label", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("quality", "STRING", mode="NULLABLE")
             ]
         ),
-        
-        # TRƯỜNG HỢP 2: Trường 'cart_products' (Mảng các sản phẩm trong giỏ hàng)
+        bigquery.SchemaField("cat_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("collect_id", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("order_id", "STRING", mode="NULLABLE"),
         bigquery.SchemaField(
             "cart_products", 
             "RECORD", 
             mode="REPEATED",
             fields=[
-                bigquery.SchemaField("sku", "STRING", mode="NULLABLE"),
-                bigquery.SchemaField("qty", "INTEGER", mode="NULLABLE"),
-                bigquery.SchemaField("price", "NUMERIC", mode="NULLABLE") 
+                bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("amount", "INTEGER", mode="NULLABLE"),
+                bigquery.SchemaField("price", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("currency", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField(
+                    "option", 
+                    "RECORD", 
+                    mode="REPEATED",
+                    fields=[
+                        bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),bigquery.SchemaField("option_label", "STRING", mode="NULLABLE"),
+                        bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),bigquery.SchemaField("option_id", "STRING", mode="NULLABLE"),
+                        bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),bigquery.SchemaField("value_label", "STRING", mode="NULLABLE"),
+                        bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),bigquery.SchemaField("value_id", "STRING", mode="NULLABLE")
+                    ]
+                )
             ]
         )
     ]
-    
-    # =====================================================================
-    # 3. TIẾN TRÌNH KHỞI TẠO BẢNG TRÊN CLOUD
-    # =====================================================================
+
+    print(f"[*] Đang yêu cầu BigQuery nạp toàn bộ file JSONL từ folder: {GCS_FOLDER_URI}...")
     try:
-        # Kiểm tra xem bảng đã tồn tại hay chưa
-        client.get_table(table_ref)
-        print(f"[-] Bảng {table_ref} đã tồn tại từ trước. Không cần tạo mới.")
-        
-    except NotFound:
-        # Nếu chưa có bảng -> Khởi tạo cấu hình bảng mới với Schema đã định nghĩa
-        table = bigquery.Table(table_ref, schema=schema)
-        
-        # Có thể thêm cấu trúc phân mảnh theo thời gian (Partition) nếu cần tối ưu chi phí sau này
-        # table.time_partitioning = bigquery.TimePartitioning(type_=bigquery.TimePartitioningType.DAY)
-        
-        # Gọi API gửi lệnh tạo bảng lên Google Cloud
-        created_table = client.create_table(table)
-        print(f"[SUCCESS] Đã khởi tạo bảng thành công: {created_table.full_table_id}")
-        print("Schema đã được áp dụng nghiêm ngặt cho bảng này.")
-        
+        load_job = client.load_table_from_uri(
+            GCS_FOLDER_URI,
+            table_ref,
+            job_config=job_config
+        )
+
+        load_job.result()
+
+        destination_table = client.get_table(table_ref)
+        print(f"[SUCCESS] Bảng `{BRONZE_SUMMARY_TABLE_ID}` đã áp dụng Schema thành công!")
+        print(f"Số lượng dòng hiện tại: {destination_table.num_rows}")
     except Exception as e:
-        print(f"[CRITICAL ERROR] Quá trình tạo bảng thất bại: {e}")
+        print(f"[CRITICAL ERROR] Quá trình nạp dữ liệu thất bại: {e}")
 
 if __name__ == "__main__":
     # 1. Tạo bảng ip_locations trên BigQuery từ file CSV trong GCS
     # create_ip_location_table_from_gcs()
 
-    # 1. Tạo bảng products trên BigQuery từ nhiều file JSONL trong GCS
-    create_product_table_from_gcs()
+    # 2. Tạo bảng products trên BigQuery từ nhiều file JSONL trong GCS
+    # create_product_table_from_gcs()
+
+    # 3. Tạo bảng summary_raw trên BigQuery từ nhiều file JSONL trong GCS
+    create_summary_table_from_gcs()
