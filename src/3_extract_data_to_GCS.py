@@ -24,9 +24,9 @@ DB_NAME = os.getenv("MONGO_DB_NAME")
 COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
-BUCKET_RAW_DATA_DIR = "bronze/summary"
+BUCKET_RAW_DATA_DIR = "bronze/summary_2"
 BUCKET_IP_LOCATION_DIR = "bronze/ip_location"
-BUCKET_PRODUCTS_DIR = "bronze/products_jsonl2"
+BUCKET_PRODUCTS_DIR = "bronze/products_jsonl"
 OUTPUT_DIR = "output"
 OUTPUT_TEMP_DIR = "output/temp"
 LOG_DIR = "output/logs"
