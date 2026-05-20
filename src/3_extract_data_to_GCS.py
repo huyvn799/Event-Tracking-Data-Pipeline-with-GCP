@@ -26,11 +26,11 @@ GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
 BUCKET_RAW_DATA_DIR = "bronze/summary"
 BUCKET_IP_LOCATION_DIR = "bronze/ip_location"
-BUCKET_PRODUCTS_DIR = "bronze/products_jsonl"
+BUCKET_PRODUCTS_DIR = "bronze/products_jsonl2"
 OUTPUT_DIR = "output"
 OUTPUT_TEMP_DIR = "output/temp"
 LOG_DIR = "output/logs"
-SUMMARY_JSONL_DIR = "output/summary_jsonl" # Thư mục tạm lưu file JSONL trên máy ảo
+SUMMARY_JSONL_DIR = "output/summary_jsonl2" # Thư mục tạm lưu file JSONL trên máy ảo
 MICRO_BATCH_SIZE = 5000     # Số dòng gom trong RAM trước khi ghi xuống ổ cứng
 RECORDS_PER_FILE = 100000   # Số dòng tối đa của 1 file JSONL (Ngưỡng phân mảnh)
 
@@ -180,15 +180,48 @@ def standardize_document(doc):
     if '_id' in doc: doc['_id'] = str(doc['_id'])
     # Quy tắc 1: Đồng nhất hóa trường option (Ép Object thành Array 1 phần tử)
     if 'option' in doc:
-        if isinstance(doc['option'], dict):
+        opt_data = doc["option"]
+        # Cách 1: Tách option thành 2 cột riêng option_object và option_list vì ý nghĩa khác nhau
+        if isinstance(opt_data, dict):
+            # Tình huống 1: Là Object -> Chuyển sang cột riêng cho Object
+            doc["option_object"] = opt_data
+            doc["option_list"] = [] # Để mảng rỗng để bảo toàn schema
+            
+        elif isinstance(opt_data, list):
+            # Tình huống 2: Là Array -> Chuyển sang cột riêng cho Array
+            doc["option_list"] = opt_data
+            doc["option_object"] = None
+
+        # Cách 2: Nếu option là object -> Đưa object vào trong mảng -> mảng 1 object
+                # Nếu option là mảng thì giữ nguyên
+        if isinstance(opt_data, dict):
             doc['option'] = [doc['option']]
-        elif doc['option'] is None or not isinstance(doc['option'], list):
+        elif doc['option'] is None or not isinstance(opt_data, list):
             doc['option'] = []
-        
-    # Quy tắc 2: Xử lý mảng cart_products nếu bị null
+
+    # Quy tắc 2: Xử lý mảng cart_products nếu bị null và option của từng item
     if 'cart_products' in doc:
+        if isinstance(doc['cart_products'], list):
+            # Duyệt qua từng sản phẩm con bên trong giỏ hàng
+            for product in doc["cart_products"]:
+                # Kiểm tra xem sản phẩm con này có trường option hay không
+                if "option" in product:
+                    opt_cart_data = product["option"]
+                    
+                    # TÌNH HUỐNG 1: option là None hoặc một chuỗi ký tự (toàn bộ là chuỗi rỗng "") -> []
+                    if opt_data is None or isinstance(opt_cart_data, str):
+                        product["option"] = []
+                    # TÌNH HUỐNG 3: option là một Object đơn lẻ (dict) thay vì mảng
+                    elif isinstance(opt_cart_data, dict):
+                        # Bọc nó lại thành một mảng chứa 1 phần tử duy nhất
+                        product["option"] = [opt_cart_data]
+                    # TÌNH HUỐNG 3: Nếu đã là list sẵn rồi thì giữ nguyên
+                    elif isinstance(opt_cart_data, list):
+                        pass
+
         if doc['cart_products'] is None or not isinstance(doc['cart_products'], list):
             doc['cart_products'] = []
+        
     
     return doc
 
