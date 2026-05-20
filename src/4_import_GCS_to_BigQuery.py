@@ -191,7 +191,6 @@ def create_summary_table_from_gcs():
                 bigquery.SchemaField("pearlcolor", "STRING", mode="NULLABLE"),
                 bigquery.SchemaField("finish", "STRING", mode="NULLABLE"),
                 bigquery.SchemaField("price", "STRING", mode="NULLABLE"),
-                bigquery.SchemaField("finish", "STRING", mode="NULLABLE"),
                 bigquery.SchemaField("category id", "STRING", mode="NULLABLE"),
                 bigquery.SchemaField("Kollektion", "STRING", mode="NULLABLE"),
                 bigquery.SchemaField("kollektion_id", "STRING", mode="NULLABLE"),
@@ -207,8 +206,8 @@ def create_summary_table_from_gcs():
         bigquery.SchemaField("collect_id", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("order_id", "STRING", mode="NULLABLE"),
         bigquery.SchemaField(
-            "cart_products", 
-            "RECORD", 
+            "cart_products",
+            "RECORD",
             mode="REPEATED",
             fields=[
                 bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),
