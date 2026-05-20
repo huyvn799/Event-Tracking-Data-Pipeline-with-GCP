@@ -140,7 +140,7 @@ def create_product_table_from_gcs():
         print(f"[CRITICAL ERROR] Quá trình nạp dữ liệu thất bại: {e}")
 
 def create_summary_table_from_gcs():
-    GCS_FOLDER_URI = f"{GCS_BUCKET_NAME}/{GCS_SUMMARY_DIR}/*.jsonl"
+    GCS_FOLDER_URI = f"gs://{GCS_BUCKET_NAME}/{GCS_SUMMARY_DIR}/*.jsonl"
 
     client = bigquery.Client(project=PROJECT_ID)
 
