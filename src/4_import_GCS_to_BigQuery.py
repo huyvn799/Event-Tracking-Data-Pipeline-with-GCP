@@ -251,7 +251,7 @@ if __name__ == "__main__":
     # create_ip_location_table_from_gcs()
 
     # 2. Tạo bảng products trên BigQuery từ nhiều file JSONL trong GCS
-    # create_product_table_from_gcs()
+    create_product_table_from_gcs()
 
     # 3. Tạo bảng summary_raw trên BigQuery từ nhiều file JSONL trong GCS
     create_summary_table_from_gcs()
