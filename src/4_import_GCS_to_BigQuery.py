@@ -202,6 +202,36 @@ def create_summary_table_from_gcs():
                 bigquery.SchemaField("quality", "STRING", mode="NULLABLE")
             ]
         ),
+        bigquery.SchemaField(
+            "option_object",
+            "RECORD",
+            mode="NULLABLE",
+            fields=[
+                bigquery.SchemaField("alloy", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("diamond", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("shapediamond", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("stone", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("pearlcolor", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("finish", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("price", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("category id", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("Kollektion", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("kollektion_id", "STRING", mode="NULLABLE")
+            ]
+        ),
+        bigquery.SchemaField(
+            "option_list",
+            "RECORD",
+            mode="REPEATED",
+            fields=[
+                bigquery.SchemaField("option_label", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("option_id", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("value_label", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("value_id", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("quality_label", "STRING", mode="NULLABLE"),
+                bigquery.SchemaField("quality", "STRING", mode="NULLABLE")
+            ]
+        ),
         bigquery.SchemaField("cat_id", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("collect_id", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("order_id", "STRING", mode="NULLABLE"),
@@ -250,7 +280,7 @@ if __name__ == "__main__":
     # create_ip_location_table_from_gcs()
 
     # 2. Tạo bảng products trên BigQuery từ nhiều file JSONL trong GCS
-    create_product_table_from_gcs()
+    # create_product_table_from_gcs()
 
     # 3. Tạo bảng summary_raw trên BigQuery từ nhiều file JSONL trong GCS
     create_summary_table_from_gcs()
