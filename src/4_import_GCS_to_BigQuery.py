@@ -215,14 +215,14 @@ def create_summary_table_from_gcs():
                 bigquery.SchemaField("price", "STRING", mode="NULLABLE"),
                 bigquery.SchemaField("currency", "STRING", mode="NULLABLE"),
                 bigquery.SchemaField(
-                    "option", 
-                    "RECORD", 
+                    "option",
+                    "RECORD",
                     mode="REPEATED",
                     fields=[
-                        bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),bigquery.SchemaField("option_label", "STRING", mode="NULLABLE"),
-                        bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),bigquery.SchemaField("option_id", "STRING", mode="NULLABLE"),
-                        bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),bigquery.SchemaField("value_label", "STRING", mode="NULLABLE"),
-                        bigquery.SchemaField("product_id", "STRING", mode="NULLABLE"),bigquery.SchemaField("value_id", "STRING", mode="NULLABLE")
+                        bigquery.SchemaField("option_label", "STRING", mode="NULLABLE"),
+                        bigquery.SchemaField("option_id", "STRING", mode="NULLABLE"),
+                        bigquery.SchemaField("value_label", "STRING", mode="NULLABLE"),
+                        bigquery.SchemaField("value_id", "STRING", mode="NULLABLE")
                     ]
                 )
             ]
