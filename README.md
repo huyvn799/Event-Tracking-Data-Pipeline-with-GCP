@@ -19,3 +19,10 @@ MONGO_PORT=27017
 MONGO_DB_NAME=******
 MONGO_COLLECTION_NAME=******
 ```
+Phải khởi chạy shell của môi trường ảo trước
+source ./.venv/bin/activate (Linux or MacOS)
+source ./.venv/Scripts/activate (Windows)
+
+sau khi install thư viện playwright, phải chạy lệnh:
+- playwright install (download môi trường để test)
+- playwright install-deps (download thư viện hỗ trợ)
