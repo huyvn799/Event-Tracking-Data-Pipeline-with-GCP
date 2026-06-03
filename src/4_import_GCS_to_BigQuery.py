@@ -8,9 +8,9 @@ load_dotenv()
 
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 GCS_IP_LOCATION_DIR = "bronze/ip_location"
-GCS_PRODUCT_DIR = "bronze/products_jsonl"
+GCS_PRODUCT_DIR = "bronze/product_jsonl"
 # GCS_SUMMARY_DIR = "bronze/summary_test"
-GCS_SUMMARY_DIR = "bronze/summary_2"
+GCS_SUMMARY_DIR = "bronze/summary_raw"
 
 PROJECT_ID = os.getenv("PROJECT_ID")
 BRONZE_DATASET_ID = os.getenv("BRONZE_DATASET_ID")
