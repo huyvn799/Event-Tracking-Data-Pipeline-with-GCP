@@ -52,7 +52,7 @@ def create_ip_location_table_from_gcs():
     # Các kiểu dữ liệu phổ biến: STRING, INTEGER, FLOAT64, NUMERIC, BOOLEAN, TIMESTAMP
     job_config.schema = [
         bigquery.SchemaField("ip", "STRING", mode="REQUIRED"),
-        bigquery.SchemaField("country", "STRING", mode="NULLABLE"),
+        bigquery.SchemaField("country_name", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("region", "STRING", mode="NULLABLE"),
         bigquery.SchemaField("city", "STRING", mode="NULLABLE")
     ]
@@ -278,10 +278,10 @@ def create_summary_table_from_gcs():
 
 if __name__ == "__main__":
     # 1. Tạo bảng ip_locations trên BigQuery từ file CSV trong GCS
-    # create_ip_location_table_from_gcs()
+    create_ip_location_table_from_gcs()
 
     # 2. Tạo bảng products trên BigQuery từ nhiều file JSONL trong GCS
-    # create_product_table_from_gcs()
+    create_product_table_from_gcs()
 
     # 3. Tạo bảng summary_raw trên BigQuery từ nhiều file JSONL trong GCS
     create_summary_table_from_gcs()
