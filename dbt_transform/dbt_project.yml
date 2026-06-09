@@ -2,7 +2,7 @@
 # Name your project! Project names should contain only lowercase characters
 # and underscores. A good package name should reflect your organization's
 # name or the intended use of these models
-name: 'dbt_transform'
+name: 'glamira_dbt_transform'
 version: '1.0.0'
 
 # This setting configures which "profile" dbt uses for this project.
@@ -30,7 +30,42 @@ clean-targets:         # directories to be removed by `dbt clean`
 # directory as views. These settings can be overridden in the individual model
 # files using the `{{ config(...) }}` macro.
 models:
-  dbt_transform:
-    # Config indicated by + and applies to all files under models/example/
-    example:
+  glamira_dbt_transform:
+    # Config indicated by + and applies to all files under models/
+    staging:
+      +schema: staging
       +materialized: view
+    core:
+      +schema: core
+      +materialized: table
+    mart:
+      +schema: marts
+      +materialized: table
+
+seeds:
+  glamira_dbt_transform:
+    # Config indicated by + and applies to all files under seeds/
+    +schema: staging
+    +quote_columns: false
+
+    countries_currencies_full:
+      +column_types:
+        country_code_iso2: string
+        country_name: string
+        currency_code: string
+        currency_name: string
+        phone_code: string
+        country_group: string
+    
+    exchange_rates_2019_2020:
+      +column_types:
+        date_key: integer
+        from_currency_code: string
+        to_currency_code: string
+        exchange_rate: numeric
+    
+    currencies_with_raw_symbol:
+      +column_types:
+        currency_code: string
+        currency_name: string
+        raw_symbol: string

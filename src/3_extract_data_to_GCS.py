@@ -24,9 +24,9 @@ DB_NAME = os.getenv("MONGO_DB_NAME")
 COLLECTION_NAME = os.getenv("MONGO_COLLECTION_NAME")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
-BUCKET_RAW_DATA_DIR = "bronze/summary_2"
-BUCKET_IP_LOCATION_DIR = "bronze/ip_location"
-BUCKET_PRODUCTS_DIR = "bronze/products_jsonl"
+BUCKET_RAW_DATA_DIR = "glamira_sources/summary_2"
+BUCKET_IP_LOCATION_DIR = "glamira_sources/ip_location"
+BUCKET_PRODUCTS_DIR = "glamira_sources/products_jsonl"
 OUTPUT_DIR = "output"
 OUTPUT_TEMP_DIR = "output/temp"
 LOG_DIR = "output/logs"
@@ -395,7 +395,7 @@ def export_to_gcs():
     # process_ip_location_to_gcs(ip_location_path, bucket, BUCKET_IP_LOCATION_DIR)
 
     # 2. Thực hiện export products jsonl files lên GCS
-    # products_jsonl_path = f"{OUTPUT_DIR}/bronze_product_jsonl"
+    # products_jsonl_path = f"{OUTPUT_DIR}/glamira_sources_product_jsonl"
     # Chỉ lấy field data trong crawl_product
     # extract_product_data("output/crawl_data",products_jsonl_path)
     # process_products_to_gcs(products_jsonl_path, bucket, BUCKET_PRODUCTS_DIR)
