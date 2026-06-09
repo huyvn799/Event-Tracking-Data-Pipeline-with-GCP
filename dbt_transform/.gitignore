@@ -1,0 +1,7 @@
+
+target/
+dbt_packages/
+logs/
+
+dbt_transform/profiles.yml
+*.json

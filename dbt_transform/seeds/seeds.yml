@@ -1,0 +1,59 @@
+version: 2
+
+seeds:
+  - name: countries_currencies_full
+    description: "Danh sách mã quốc gia và tiền tệ trên toàn cầu"
+    config:
+      # Bạn cũng có thể cấu hình trực tiếp tại đây thay vì dbt_project.yml
+      delimiter: ','
+      alias: 'stg_countries_currencies_csv'
+    columns:
+      - name: country_code_iso2
+        tests:
+          - unique
+          - not_null
+      - name: country_name
+        tests:
+          - not_null
+      - name: phone_code
+        tests:
+          - not_null
+      - name: country_group
+        tests:
+          - not_null
+
+  - name: exchange_rates_2019_2020
+    description: "Danh sách tỷ giá hối đoái từ 2019 đến 2020"
+    config:
+      # Bạn cũng có thể cấu hình trực tiếp tại đây thay vì dbt_project.yml
+      delimiter: ','
+      alias: 'stg_exchange_rates_csv'
+    columns:
+      - name: date_key
+        tests:
+          - not_null
+      - name: from_currency_code
+        tests:
+          - not_null
+      - name: to_currency_code
+        tests:
+          - not_null
+      - name: exchange_rate
+        tests:
+          - not_null
+
+  - name: currencies_with_raw_symbol
+    description: "Danh sách mã tiền tệ trên toàn cầu"
+    config:
+      # Bạn cũng có thể cấu hình trực tiếp tại đây thay vì dbt_project.yml
+      delimiter: ','
+      alias: 'stg_currencies_with_raw_symbol_csv'
+    columns:
+      - name: currency_code
+        tests:
+          - unique
+          - not_null
+      - name: currency_name
+        tests:
+          - not_null
+      
