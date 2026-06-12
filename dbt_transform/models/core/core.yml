@@ -11,6 +11,139 @@ models:
             tests:
                 - unique
                 - not_null
+          - name: store_id
+            data_type: string
+            tests:
+                - unique
+                - not_null
+          - name: country_code
+            data_type: string
+            tests:
+                - not_null
+          - name: country_name
+            data_type: string
+            tests:
+                - not_null
+    - name: dim_currency
+      description: "Dimension table for currency information"
+      columns:
+          - name: currency_key
+            data_type: integer
+            tests:
+                - unique
+                - not_null
+          - name: currency_code
+            data_type: string
+            tests:
+                - unique
+                - not_null
+          - name: currency_name
+            data_type: string
+            tests:
+                - not_null
+    - name: fact_snapshot_exchange_rate
+      description: "Fact table for snapshot exchange rate of currency by date"
+      tests:
+        - dbt_utils.unique_combination_of_columns:
+          arguemnts:
+            combination_of_columns:
+              - date_key
+              - from_currency_key
+              - to_currency_key
+            quote_columns: true
+      columns:
+          - name: date_key
+            data_type: integer
+            tests:
+                - not_null
+          - name: from_currency_key
+            data_type: integer
+            tests:
+                - not_null
+          - name: to_currency_key
+            data_type: integer
+            tests:
+                - not_null
+          - name: exchange_rate
+            data_type: numeric
+            tests:
+                - not_null
+
+    - name: dim_product
+      description: "Dimension table for product information"
+      columns:
+          - name: product_key
+            data_type: integer
+            description: "The unique identifier for each product"
+            tests:
+                - unique
+                - not_null
+          - name: product_id
+            data_type: string
+            description: "The original product ID from the source system"
+            tests:
+                - unique
+                - not_null
+          - name: product_name
+            data_type: string
+            tests:
+                - not_null
+          - name: product_sku
+            data_type: string
+            tests:
+                - not_null
+          - name: attribute_set_id
+            data_type: string
+            tests:
+                - not_null
+          - name: attribute_set_name
+            data_type: string
+            tests:
+                - not_null
+          - name: packaging_type
+            data_type: string
+            tests:
+                - not_null
+          - name: collection_id
+            data_type: string
+            tests:
+                - not_null
+          - name: collection_name
+            data_type: string
+            tests:
+                - not_null
+          - name: product_type_id
+            data_type: string
+            tests:
+                - not_null
+          - name: product_type_name
+            data_type: string
+            tests:
+                - not_null
+          - name: category_id
+            data_type: string
+            tests:
+                - not_null
+          - name: category_name
+            data_type: string
+            tests:
+                - not_null
+          - name: gender
+            data_type: string
+            tests:
+                - not_null
+          - name: vnd_unit_price
+            data_type: string
+            tests:
+                - not_null
+          - name: vnd_min_price
+            data_type: string
+            tests:
+                - not_null
+          - name: vnd_max_price
+            data_type: string
+            tests:
+                - not_null
 
     - name: dim_date
       description: "Dimension table for date information"

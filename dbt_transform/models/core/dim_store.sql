@@ -63,26 +63,9 @@ with cte_all_store_ids as (
     from cte_get_country_code t
     left join {{ ref('countries_currencies_full') }} as stg
         on t.country_code = stg.country_code_iso2
-    union all
-    select
-        -1 as store_key,
-        '-1' as store_id,
-        'Unknown' as country_code,
-        'Unknown' as country_name
 )
 
-, cte_store_staging_with_audit as (
-    select
-        store_key,
-        store_id,
-        country_code,
-        country_name,
-        {{ generate_created_coulmns() }},
-        {{ generate_updated_coulmns() }}
-    from cte_store_staging
-)
-
-, cte_final as (
+, cte_store_with_audit_and_incremental as (
     select
         stg.store_key,
         stg.store_id,
@@ -106,13 +89,22 @@ with cte_all_store_ids as (
         session_user() as updated_by
     {% endif%}
 
-    from cte_store_staging_with_audit stg
+    from cte_store_staging stg
     {% if is_incremental() %}
         left join {{ this }} old
             on stg.store_key = old.store_key
+    {% else %}
+    union all
+    select
+        -1 as store_key,
+        '-1' as store_id,
+        'Unknown' as country_code,
+        'Unknown' as country_name,
+        {{ generate_created_columns() }},
+        {{ generate_updated_columns() }}
     {% endif %}
 )
 
 select
     *
-from cte_final
+from cte_store_with_audit_and_incremental

@@ -3,7 +3,7 @@ from google.cloud import bigquery
 
 # Cấu hình cố định hệ thống của Huy
 PROJECT_ID = "gcp-data-glamira-dec-k23"
-BRONZE_DATASET_ID = "glamira_bronze"
+BRONZE_DATASET_ID = "glamira_sources"
 BRONZE_SUMMARY_TABLE_ID = "summary_raw"
 BRONZE_PRODUCT_TABLE_ID = "product_test_trigger"
 BRONZE_IP_LOCATION_TABLE_ID = "ip_locations"

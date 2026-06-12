@@ -1,6 +1,7 @@
 {{
     config(
         materialized='incremental',
+        schema='core',
         unique_key='date_key',
         incremental_strategy='merge'
     )
