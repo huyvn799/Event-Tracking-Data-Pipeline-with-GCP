@@ -2,50 +2,128 @@
     config(
         materialized='incremental',
         schema='core',
-        unique_key = ['date_key', 'from_currency_key', 'to_currency_key'],
+        unique_key = 'exchange_rate_key',
         incremental_strategy = 'merge',
+        cluster_by = ['date_key', 'from_currency_key'],
         merge_update_columns = ['exchange_rate', 'updated_at', 'updated_by']
     )
 }}
 
-with cte_currencies_with_raw_symbol_csv as (
-    select 
-        cast(currency_code as string) as currency_code,
-        cast(raw_symbol as string)as raw_currency_symbol
-    from {{ ref('currencies_with_raw_symbol') }}
+with min_date as (
+  select min(date_key) as min_date from {{ ref('exchange_rates_2019_2020') }}
 )
-
-, cte_dim_currency as (
+, max_date as (
+  select max(date_key) as max_date from {{ ref('exchange_rates_2019_2020') }}
+)
+, cte_filter_min_date as (
+  select
+  distinct
+  d.date_key
+  from `glamira_core.dim_date` d
+  cross join min_date m
+  where d.date_key >= m.min_date
+)
+, cte_filter_min_and_max_date as (
+  select
+  distinct
+  d.date_key
+  from cte_filter_min_date d
+  cross join max_date m
+  where d.date_key <= m.max_date
+)
+, cte_join_currency_from_to as (
+  select
+  d.date_key,
+  from_c.currency_code as from_currency_code,
+  from_c.currency_key as from_currency_key,
+  to_c.to_currency_code as to_currency_code,
+  to_c.to_currency_key as to_currency_key
+  from cte_filter_min_and_max_date d
+  cross join {{ ref('dim_currency') }} from_c
+  cross join (
     select 
-        cast(currency_key as int64) as currency_key,
-        cast(currency_code as string) as currency_code,
-        cast(currency_name as string) as currency_name
+      currency_code as to_currency_code, 
+      currency_key as to_currency_key 
     from {{ ref('dim_currency') }}
+    where currency_code in ('USD')) to_c
+  where from_c.currency_key <> -1
 )
-
-, cte_exchange_rates_2019_2020_csv as (
-    select 
-        cast(date_key as int64) as date_key,
-        cast(from_currency_code as string) as from_currency_code,
-        cast(to_currency_code as string) as to_currency_code,
-        cast(exchange_rate as numeric) as exchange_rate
-    from {{ ref('exchange_rates_2019_2020') }}
+, cte_join_rate as (
+  select
+  t.date_key,
+  t.from_currency_code,
+  t.from_currency_key,
+  t.to_currency_code,
+  t.to_currency_key,
+  r.exchange_rate
+  from cte_join_currency_from_to t
+  left join `glamira_staging.stg_exchange_rates_csv` r
+  on t.date_key = r.date_key
+    and t.from_currency_code = r.from_currency_code
 )
-
-, cte_fact_snapshot_exchange_rate as (
+, cte_forward_fill_for_rate_null as (
+  select
+  t.date_key,
+  t.from_currency_code,
+  t.from_currency_key,
+  t.to_currency_code,
+  t.to_currency_key,
+  LAST_VALUE(t.exchange_rate IGNORE NULLS) OVER (
+    PARTITION BY t.from_currency_code, t.to_currency_code
+    ORDER BY t.date_key
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) as exchange_rate
+  from cte_join_rate t
+)
+, cte_final as (
     select
-        d.date_key,
-        c.from_currency_code,
-        c.to_currency_code,
-    from {{ ref('dim_date') }} d
-    left join cte_exchange_rates_2019_2020_csv r
-        on d.date_key = r.date_key
-            and d_currency.currency_code = r.from_currency_code
-    cross join cte_dim_currency c
+        farm_fingerprint(concat(cast(t.date_key as string), t.from_currency_code, t.to_currency_code)) as exchange_rate_key,
+        t.date_key,
+        t.from_currency_code,
+        t.from_currency_key,
+        t.to_currency_code,
+        t.to_currency_key,
+        t.exchange_rate
+    from cte_forward_fill_for_rate_null t
+    where t.exchange_rate is not null
 )
-
-, cte_forward_fill_for_fact as (
+{% if is_incremental() %}
     select
-        *
-    from cte_fact_snapshot_exchange_rate
-)
+    old.exchange_rate_key,
+    old.date_key,
+    old.from_currency_key,
+    old.to_currency_key,
+    t.exchange_rate,
+    old.created_at,
+    old.created_by,
+    current_timestamp() as updated_at,
+    session_user() as updated_by
+    from cte_final t
+    inner join {{ this }} as old 
+        on t.exchange_rate_key = old.exchange_rate_key 
+    where t.exchange_rate <> old.exchange_rate
+
+  union all
+    select
+    farm_fingerprint(concat(cast(t.date_key as string), t.from_currency_code, t.to_currency_code)) as exchange_rate_key,
+    t.date_key,
+    t.from_currency_key,
+    t.to_currency_key,
+    t.exchange_rate,
+    {{ generate_created_columns() }},
+    {{ generate_updated_columns() }}
+    from cte_final t
+    left join {{ this }} as old 
+        on t.exchange_rate_key = old.exchange_rate_key 
+    where old.exchange_rate_key is null
+{% else %}
+    select
+    t.exchange_rate_key,
+    t.date_key,
+    t.from_currency_key,
+    t.to_currency_key,
+    t.exchange_rate,
+    {{ generate_created_columns() }},
+    {{ generate_updated_columns() }}
+    from cte_final t
+{% endif %}
