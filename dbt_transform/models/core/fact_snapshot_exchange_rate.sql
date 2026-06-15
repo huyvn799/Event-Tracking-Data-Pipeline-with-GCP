@@ -1,10 +1,14 @@
 {{
     config(
-        materialized='incremental',
-        schema='core',
-        unique_key = 'exchange_rate_key',
+        materialized = 'incremental',
+        schema = 'core',
+        partition_by = {
+          "field": "full_date",
+          "data_type": "date"
+        },
+        cluster_by = ['from_currency_key'],
+        unique_key = ['exchange_rate_key'],
         incremental_strategy = 'merge',
-        cluster_by = ['date_key', 'from_currency_key'],
         merge_update_columns = ['exchange_rate', 'updated_at', 'updated_by']
     )
 }}
@@ -79,6 +83,7 @@ with min_date as (
     select
         farm_fingerprint(concat(cast(t.date_key as string), t.from_currency_code, t.to_currency_code)) as exchange_rate_key,
         t.date_key,
+        format_date('%Y-%m-%d',parse_date('%Y%m%d', cast(date_key as string))) as full_date,
         t.from_currency_code,
         t.from_currency_key,
         t.to_currency_code,
@@ -91,6 +96,7 @@ with min_date as (
     select
     old.exchange_rate_key,
     old.date_key,
+    old.full_date,
     old.from_currency_key,
     old.to_currency_key,
     t.exchange_rate,
@@ -107,6 +113,7 @@ with min_date as (
     select
     farm_fingerprint(concat(cast(t.date_key as string), t.from_currency_code, t.to_currency_code)) as exchange_rate_key,
     t.date_key,
+    t.full_date,
     t.from_currency_key,
     t.to_currency_key,
     t.exchange_rate,
@@ -120,6 +127,7 @@ with min_date as (
     select
     t.exchange_rate_key,
     t.date_key,
+    t.full_date,
     t.from_currency_key,
     t.to_currency_key,
     t.exchange_rate,

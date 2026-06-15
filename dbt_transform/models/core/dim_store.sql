@@ -2,7 +2,8 @@
     config(
         materialized = 'incremental',
         schema = 'core',
-        unique_key = 'store_id',
+        cluster_by = ['store_key', 'store_id'],
+        unique_key = ['store_id'],
         incremental_strategy = 'merge',
         merge_update_columns = ['country_code', 'country_name', 'updated_at', 'updated_by']
     )

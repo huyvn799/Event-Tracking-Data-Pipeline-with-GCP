@@ -1,7 +1,8 @@
 {{
     config(
-        materialized='table',
-        schema='core'
+        materialized = 'table',
+        schema = 'core',
+        cluster_by = ['currency_key', 'currency_code'],
     )
 }}
 

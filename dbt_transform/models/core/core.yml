@@ -52,6 +52,11 @@ models:
               - to_currency_key
             quote_columns: true
       columns:
+          - name: exchange_rate_key
+            data_type: integer
+            tests:
+                - unique
+                - not null
           - name: date_key
             data_type: integer
             tests:

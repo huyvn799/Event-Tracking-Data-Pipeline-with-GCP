@@ -8,6 +8,7 @@ sources:
     tables:
       - name: summary_raw
       - name: products
+      - name: ip_locations
 
   # - name: bigquery_source
   #   database: glamira-dec-k23-huy
