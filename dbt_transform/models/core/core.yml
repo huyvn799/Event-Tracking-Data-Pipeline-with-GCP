@@ -43,14 +43,14 @@ models:
                 - not_null
     - name: fact_snapshot_exchange_rate
       description: "Fact table for snapshot exchange rate of currency by date"
-      data-tests:
+      tests:
         - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns:
-              - date_key
-              - from_currency_key
-              - to_currency_key
-            quote_columns: true
+            arguments:
+              combination_of_columns:
+                - date_key
+                - from_currency_key
+                - to_currency_key
+              quote_columns: true
       columns:
           - name: exchange_rate_key
             data_type: integer

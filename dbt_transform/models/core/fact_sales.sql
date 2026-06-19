@@ -13,33 +13,41 @@
     )
 }}
 
-with cte_source as (
-SELECT 
-  *
-  except(_id,
-    user_agent,
-    option,
-    option_list,
-    option_object
-    cart_products),
-  cart_products_unnest.product_id as cart_product_id,
-  cart_products_unnest.amount as cart_amount,
-  cart_products_unnest.price as cart_price,
-  cart_products_unnest.currency as cart_currency
-  FROM `glamira-dec-k23-huy.bronze.summary_raw`
-CROSS JOIN
-  UNNEST(cart_products) as cart_products_unnest
-where collection = "checkout_success"
-)
-, cte_filter_sales_columns as (
+with cte_format_data as (
   select
-    timestamp_seconds(cast(timestamp as int64)) as utc_timestamp,
-    trim(ip) as ip_address,
-    trim(user_id_db) as user_id_db,
-    trim(store_id) as store_id,
-    cast(local_time as datetime) as local_datetime,
-    trim(email_address) as email_address,
-    cast(regexp_extract(order_id,'^([0-9]+)\.0$')) as order_id,
+    cast(regexp_extract(order_id,'^([0-9]+)[.]*') as string) as order_id,
+    utc_timestamp,
+    local_datetime,
+    store_id,
+    ip_address,
+    user_id_db,
+    email_address,
+    product_id,
+    currency,
+    product_qty,
+    CASE 
+      -- Nếu số có dạng chữ.chữ,chữ (Kiểu Châu Âu: có dấu chấm ở trước dấu phẩy)
+      WHEN REGEXP_CONTAINS(unit_price, r'\..*,') 
+        THEN REGEXP_REPLACE(REGEXP_REPLACE(unit_price, r'\.', ''), r',', '.')
+      
+      -- Nếu số có dạng chữ,chữ.chữ (Kiểu Mỹ: có dấu phẩy ở trước dấu chấm)
+      WHEN REGEXP_CONTAINS(unit_price, r',.*\.') 
+        THEN REGEXP_REPLACE(unit_price, r',', '')
+      
+      -- Nếu số có dạng chữ'chữ.chữ (Kiểu có dấu nháy ở trước dấu chấm)
+      WHEN REGEXP_CONTAINS(unit_price, r'\..*,') 
+        THEN REGEXP_REPLACE(REGEXP_REPLACE(unit_price, r'\.', ''), r',', '.')
 
-  from cte_source
+      -- Các trường hợp còn lại nếu có dấu phẩy thừa thì xóa nốt
+      ELSE REGEXP_REPLACE(unit_price, r',', '')
+    END 
+  AS unit_price
+
+  from {{ ref('stg_fact_sales') }}
+  
 )
+
+
+select
+*
+from cte_format_data
