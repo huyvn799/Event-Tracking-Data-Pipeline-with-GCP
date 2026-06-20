@@ -111,7 +111,7 @@ with min_date as (
 
   union all
     select
-    farm_fingerprint(concat(cast(t.date_key as string), t.from_currency_code, t.to_currency_code)) as exchange_rate_key,
+    t.exchange_rate_key,
     t.date_key,
     t.full_date,
     t.from_currency_key,
