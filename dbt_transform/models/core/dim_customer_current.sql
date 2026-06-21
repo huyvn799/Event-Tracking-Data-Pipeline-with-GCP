@@ -1,7 +1,7 @@
 {{ config(
     materialization = 'incremental',
     cluster_by = ['user_id_db', 'active_date'],
-    unique_key = ['customer_key'],
+    unique_key = ['user_id_db'],
     incremental_strategy = 'merge',
     merge_update_columns = [
       'email_address',
@@ -20,9 +20,9 @@ select
  start_utc_timestamp,
  LAST_VALUE(email_address IGNORE NULLS) OVER (
   PARTITION BY user_id_db
-  ORDER BY start_utc_timestamp ASC
+  ORDER BY start_local_datetime ASC
  ) as email_address
-from {{ ref('stg_user_email_by_utc_timestamp') }}
+from {{ ref('stg_user_email_by_local_datetime') }}
 )
 , cte_convert_to_date as (
 select 
@@ -37,16 +37,18 @@ from cte_forward_fill
 , cte_get_latest_email as (
   select
   user_id_db,
-  start_utc_date,
-  start_utc_timestamp,
+  start_local_date,
+  start_local_datetime,
   email_address,
   LAST_VALUE(email_address) OVER (
-    PARTITION BY user_id_db, start_utc_date
-    ORDER BY start_utc_timestamp ASC
-  ) as latest_email_address,
-  FIRST_VALUE(start_utc_date) OVER (
     PARTITION BY user_id_db
-    ORDER BY start_utc_timestamp ASC
+    ORDER BY start_local_datetime ASC
+    ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+  ) as latest_email_address,
+  FIRST_VALUE(start_local_date) OVER (
+    PARTITION BY user_id_db
+    ORDER BY start_local_datetime ASC
+    ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
   ) as first_start_date
   
   from cte_convert_to_date
@@ -83,24 +85,29 @@ from cte_generate_key
 )
 
 select
-  stg.customer_key,
-  stg.user_id_db,
-  stg.email_address,
-  stg.active_date,
-  stg.has_email_info,
   {% if is_incremental() %}
+    coalesce(old.customer_key, stg.customer_key) as customer_key,
+    stg.user_id_db,
+    stg.email_address,
+    stg.active_date,
+    stg.has_email_info,
     coalesce(old.created_at, current_timestamp()) as created_at,
     coalesce(old.created_by, session_user()) as created_by,
     current_timestamp() as updated_at,
     session_user() as updated_by
   {% else %}
+    stg.customer_key,
+    stg.user_id_db,
+    stg.email_address,
+    stg.active_date,
+    stg.has_email_info,
     {{ generate_created_columns() }},
     {{ generate_updated_columns() }}
   {% endif %}
 from cte_final stg
 {% if is_incremental() %}
   left join {{ this }} old
-    on stg.customer_key = old.customer_key
+    on stg.user_id_db = old.user_id_db
 {% else %}
 
 union all

@@ -28,7 +28,6 @@
 }}
 with cte_product_staging as (
   select
-      farm_fingerprint(cast(product_id as string)) as product_key,
       product_id as product_id,
       coalesce(product_name, 'Unknown') as product_name,
       coalesce(product_sku, 'Unknown') as product_sku,
@@ -52,6 +51,34 @@ with cte_product_staging as (
       coalesce(vnd_min_price, 0) as vnd_min_price,
       coalesce(vnd_max_price, 0) as vnd_max_price
   from {{ ref('stg_product') }}
+)
+, cte_product_from_raw_summary as (
+select 
+  distinct
+  product_id
+from {{ ref('stg_sales_order_detail') }}
+) 
+, cte_full_join_product as (
+  select
+      coalesce(c.product_id, s.product_id, '-1') as product_id,
+      coalesce(c.product_name, 'Unknown') as product_name,
+      coalesce(c.product_sku, 'Unknown') as product_sku,
+      coalesce(c.attribute_set_id, '-1') as attribute_set_id,
+      coalesce(c.attribute_set_name, 'Unknown') as attribute_set_name,
+      coalesce(c.packaging_type, 'Unknown') as packaging_type,
+      coalesce(c.collection_id, '-1') as collection_id,
+      coalesce(c.collection_name, 'Unknown') as collection_name,
+      coalesce(c.product_type_id, '-1') as product_type_id,
+      coalesce(c.product_type_name, 'Unknown') as product_type_name,
+      coalesce(c.category_id, '-1') as category_id,
+      coalesce(c.category_name, 'Unknown') as category_name,
+      coalesce(c.gender, 'Unknown') as gender,
+      coalesce(c.vnd_unit_price, 0) as vnd_unit_price,
+      coalesce(c.vnd_min_price, 0) as vnd_min_price,
+      coalesce(c.vnd_max_price, 0) as vnd_max_price
+  from cte_product_staging c
+  full outer join cte_product_from_raw_summary s
+    on c.product_id = s.product_id
 )
 
 , cte_product_with_audit_and_incremental as (
@@ -78,7 +105,7 @@ with cte_product_staging as (
     old.created_by,
     current_timestamp() as updated_at,
     session_user() as updated_by
-  from cte_product_staging stg
+  from cte_full_join_product stg
   inner join {{ this }} old
     on stg.product_id = old.product_id
   where stg.product_name <> old.product_name
@@ -119,14 +146,14 @@ with cte_product_staging as (
     stg.vnd_max_price,
     {{ generate_created_columns() }},
     {{ generate_updated_columns() }}
-  from cte_product_staging stg
+  from cte_full_join_product stg
   left join {{ this }} old
     on stg.product_id = old.product_id
   where old.product_id is null
       
   {% else %}
   select
-    product_key,
+    farm_fingerprint(cast(product_id as string)) as product_key,
     product_id,
     product_name,
     product_sku,
@@ -145,7 +172,7 @@ with cte_product_staging as (
     vnd_max_price,
     {{ generate_created_columns() }},
     {{ generate_updated_columns() }}
-  from cte_product_staging stg
+  from cte_full_join_product stg
   union all
   select
     -1 as product_key,

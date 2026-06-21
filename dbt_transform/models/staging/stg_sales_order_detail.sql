@@ -7,26 +7,38 @@
 
 with cte_source as (
 SELECT 
-  *
-  except(_id,
-    user_agent,
-    option,
-    option_list,
-    option_object,
-    cart_products),
+  -- bỏ những dòng data trùng lặp khi crawl
+  distinct
+  order_id,
+  local_time,
+  store_id,
+  ip,
+  user_id_db,
+  email_address,
+  cart_products
+FROM {{ source('glamira_sources', 'summary_raw') }}
+where collection = "checkout_success"
+)
+
+, cte_unnest_cart_products as (
+SELECT 
+  order_id,
+  local_time,
+  store_id,
+  ip,
+  user_id_db,
+  email_address,
   cart_products_unnest.product_id as cart_product_id,
   cart_products_unnest.amount as cart_amount,
   cart_products_unnest.price as cart_price,
   cart_products_unnest.currency as cart_currency
-FROM {{ source('glamira_sources', 'summary_raw') }}
+FROM cte_source
 CROSS JOIN
   UNNEST(cart_products) as cart_products_unnest
-where collection = "checkout_success"
 )
 , cte_filter_sales_columns as (
   select
     cast(trim(order_id) as string) as order_id,
-    timestamp_seconds(cast(time_stamp as int64)) as utc_timestamp,
     cast(trim(local_time) as datetime) as local_datetime,
     cast(trim(store_id) as string) as store_id,
     cast(trim(ip) as string) as ip_address,
@@ -36,16 +48,14 @@ where collection = "checkout_success"
     cast(trim(cart_currency) as string) as currency,
     cast(cart_amount as int64) as product_qty,
     cast(trim(cart_price) as string) as unit_price
-  from cte_source
+  from cte_unnest_cart_products
 )
 , cte_format_data as (
   select
     cast(regexp_extract(order_id,'^([0-9]+)[.]*') as string) as order_id,
-    utc_timestamp,
     local_datetime,
-    cast(utc_timestamp as date) as utc_order_date,
     cast(local_datetime as date) as local_order_date,
-    cast(format_timestamp('%Y%m%d', utc_timestamp) as int64) as order_date_key,
+    cast(format_datetime('%Y%m%d', local_datetime) as int64) as order_date_key,
     nullif(store_id,'') as store_id,
     nullif(ip_address,'') as ip_address,
     nullif(user_id_db,'') as user_id_db,
@@ -77,7 +87,7 @@ where collection = "checkout_success"
       ELSE REGEXP_REPLACE(unit_price, r',', '')
       END
     as numeric) AS unit_price,
-    row_number() over(order by utc_timestamp) as row_num
+    row_number() over(order by local_datetime) as row_num
   {# from {{ ref('stg_fact_sales') }} #}
   from cte_filter_sales_columns
   

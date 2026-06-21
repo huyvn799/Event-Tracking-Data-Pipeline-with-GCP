@@ -1,0 +1,84 @@
+
+version: 2
+
+models:
+    - name: mart_sales_looker_report
+      description: "Table for sales report"
+      columns:
+          - name: order_id
+            data_type: string
+            tests:
+                - not_null
+          - name: order_datetime
+            data_type: datetime
+            tests:
+                - not_null
+          - name: product_id
+            data_type: string
+            tests:
+                - not_null
+          - name: product_sku
+            data_type: string
+            tests:
+                - not_null
+          - name: product_name
+            data_type: string
+            tests:
+                - not_null
+          - name: product_category
+            data_type: string
+            tests:
+                - not_null
+          - name: product_collection
+            data_type: string
+            tests:
+                - not_null
+          - name: customer_country
+            data_type: string
+            tests:
+                - not_null
+          - name: customer_region
+            data_type: string
+            tests:
+                - not_null
+          - name: customer_city
+            data_type: string
+            tests:
+                - not_null
+          - name: store_id
+            data_type: string
+            tests:
+                - not_null
+          - name: store_country
+            data_type: string
+            tests:
+                - not_null
+          - name: customer_id
+            data_type: string
+            tests:
+                - not_null
+          - name: customer_email
+            data_type: string
+            tests:
+                - not_null
+          - name: currency_code
+            data_type: string
+            tests:
+                - not_null
+          - name: currency_name
+            data_type: string
+            tests:
+                - not_null
+          - name: quantity_sold
+            data_type: int64
+            tests:
+                - not_null
+          - name: unit_price
+            data_type: numeric
+            tests:
+                - not_null
+          - name: sales_amount
+            data_type: numeric
+            tests:
+                - not_null
+    
