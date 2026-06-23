@@ -38,7 +38,7 @@ def process_ip_locations():
         client = pymongo.MongoClient(connection_string, serverSelectionTimeoutMS=10000)
         db = client[DB_NAME]
         collection = db[COLLECTION_NAME]
-        ip_collection = db["ip_locations"]
+        ip_collection = db["ip_location_mapping"]
     except Exception as e:
         print(f"✗ Lỗi kết nối MongoDB: {e}")
         return
@@ -111,6 +111,10 @@ def process_ip_locations():
     total_failure = 0
     total_batches = 0
     batch_results = []
+
+    # Xóa file CSV cũ nếu tồn tại
+    if os.path.exists(CSV_PATH):
+        os.remove(CSV_PATH)
     
     # Xử lý theo batch
     for i in range(0, len(unique_ips), BATCH_SIZE):
@@ -128,41 +132,39 @@ def process_ip_locations():
         for ip in batch_ids:
             try:
                 rec = ip2loc.get_all(ip)
-                country = rec.country_long or "Unknown"
+                country_code = rec.country_short or "Unknown"
+                country_name = rec.country_long or "Unknown"
                 region = rec.region or "Unknown"
                 city = rec.city or "Unknown"
                 
                 batch_data.append({
-                    "IP": ip,
-                    "Country": country,
-                    "Region": region,
-                    "City": city,
-                    "Mapped": True
+                    "ip_address": ip,
+                    "country_code": country_code,
+                    "country_name": country_name,
+                    "region": region,
+                    "city": city
                 })
                 batch_success += 1
             except Exception:
                 batch_data.append({
-                    "IP": ip,
-                    "Country": "Unknown",
-                    "Region": "Unknown",
-                    "City": "Unknown",
-                    "Mapped": False
+                    "ip_address": "Unknown",
+                    "country_code": "Unknown",
+                    "country_name": "Unknown",
+                    "region": "Unknown",
+                    "city": "Unknown"
                 })
                 batch_failure += 1
         
         # Ghi batch vào CSV (append mode)
         try:
-            # Xóa file CSV cũ nếu tồn tại
-            if os.path.exists(CSV_PATH):
-                os.remove(CSV_PATH)
-
+            column_headers = ["ip_address", "country_code", "country_name", "region","city"]
             with open(CSV_PATH, 'a', newline='', encoding='utf-8') as csvfile:
                 if i == 0:  # Viết header cho lần đầu
-                    writer = csv.DictWriter(csvfile, fieldnames=["IP", "Country", "Region", "City", "Mapped"])
+                    writer = csv.DictWriter(csvfile, fieldnames=column_headers)
                     writer.writeheader()
                 else:
-                    writer = csv.DictWriter(csvfile, fieldnames=["IP", "Country", "Region", "City", "Mapped"])
-                writer.writerows(batch_data)
+                    writer = csv.DictWriter(csvfile, fieldnames=column_headers)
+                writer.writerows(batch_data) 
         except Exception as e:
             print(f"✗ Lỗi ghi CSV batch {batch_count}: {e}")
         
@@ -213,3 +215,6 @@ def process_ip_locations():
     
     # Đóng kết nối
     client.close()
+
+if __name__ == "__main__":
+    process_ip_locations()
