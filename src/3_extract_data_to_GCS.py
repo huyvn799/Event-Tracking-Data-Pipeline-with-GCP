@@ -391,14 +391,14 @@ def export_to_gcs():
     bucket = storage_client.bucket(GCS_BUCKET_NAME)
 
     # 1. Thực hiện export ip location csv file lên GCS
-    # ip_location_path = f"{OUTPUT_DIR}/ip_locations.csv"
-    # process_ip_location_to_gcs(ip_location_path, bucket, BUCKET_IP_LOCATION_DIR)
+    ip_location_path = f"{OUTPUT_DIR}/ip_locations.csv"
+    process_ip_location_to_gcs(ip_location_path, bucket, BUCKET_IP_LOCATION_DIR)
 
     # 2. Thực hiện export products jsonl files lên GCS
-    # products_jsonl_path = f"{OUTPUT_DIR}/glamira_sources_product_jsonl"
+    products_jsonl_path = f"{OUTPUT_DIR}/product_jsonl"
     # Chỉ lấy field data trong crawl_product
-    # extract_product_data("output/crawl_data",products_jsonl_path)
-    # process_products_to_gcs(products_jsonl_path, bucket, BUCKET_PRODUCTS_DIR)
+    extract_product_data("output/crawl_data",products_jsonl_path)
+    process_products_to_gcs(products_jsonl_path, bucket, BUCKET_PRODUCTS_DIR)
 
     # 3. Thực hiện export raw data 41m records lên GCS
     export_raw_data_to_jsonl(MICRO_BATCH_SIZE, RECORDS_PER_FILE)
